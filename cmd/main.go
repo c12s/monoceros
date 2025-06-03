@@ -62,7 +62,10 @@ func main() {
 		log.Fatal(err)
 	}
 	time.Sleep(time.Duration(monocerosCfg.JoinWait) * time.Second)
-	tree := plumtree.NewPlumtree(plumtreeCfg, hyparview, logger)
+	l1 := log.New(&lumberjack.Logger{
+		Filename: fmt.Sprintf("log/pt_%d.log", monocerosCfg.NodeID),
+	}, strconv.Itoa(int(monocerosCfg.NodeID)), log.LstdFlags|log.Lshortfile)
+	tree := plumtree.NewPlumtree(plumtreeCfg, hyparview, l1)
 	l2 := log.New(&lumberjack.Logger{
 		Filename: fmt.Sprintf("log/mc_%d.log", monocerosCfg.NodeID),
 	}, strconv.Itoa(int(monocerosCfg.NodeID)), log.LstdFlags|log.Lshortfile)

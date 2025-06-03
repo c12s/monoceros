@@ -4,19 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/c12s/hyparview/data"
-	"github.com/c12s/hyparview/hyparview"
 	"github.com/c12s/plumtree"
 )
 
 type ActiveAggregationReq struct {
 	Tree       plumtree.TreeMetadata
 	Timestamp  int64
-	WaitingFor []hyparview.Peer
+	WaitingFor []data.Node
 	Aggregate  int64
 	Scores     map[int64]float64
 }
@@ -56,8 +56,10 @@ func NewMonoceros(rn *plumtree.Plumtree, config Config, logger *log.Logger) *Mon
 
 func (m *Monoceros) Start() {
 	m.initRN()
+	// if m.config.NodeID == 1 {
 	go m.initAggregation(m.RN)
 	go m.tryTriggerAggregation(m.RN)
+	// }
 }
 
 func (m *Monoceros) initRN() {
@@ -67,7 +69,9 @@ func (m *Monoceros) initRN() {
 	})
 	m.RN.plumtree.OnTreeConstructed(m.joinRRN)
 	m.RN.plumtree.OnMessage(m.onMessage)
+	// if m.config.NodeID == 1 {
 	go m.tryPromote(m.RN)
+	// }
 }
 
 func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata) {
@@ -85,11 +89,14 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 
 func (m *Monoceros) tryPromote(network *TreeOverlay) {
 	for range time.NewTicker(1 * time.Second).C {
-		peersNum := len(network.plumtree.GetPeers())
+		peersNum := network.plumtree.GetPeersNum()
 		expectedAggregationTime := (network.lastAggregationTime + 2*(network.rank*m.config.TAggSec))
+		now := time.Now().Unix()
 		m.logger.Println("peers num", peersNum)
+		m.logger.Println("rank", network.rank)
 		m.logger.Println("expected aggregation time", expectedAggregationTime)
-		if peersNum == 0 || expectedAggregationTime < time.Now().Unix() {
+		m.logger.Println("now", now)
+		if (peersNum == 0 || expectedAggregationTime < now) && network.local == nil {
 			m.promote(network)
 		}
 	}
@@ -136,7 +143,7 @@ func (m *Monoceros) initAggregation(network *TreeOverlay) {
 }
 
 func (m *Monoceros) onMessage(tree plumtree.TreeMetadata, msgType string, msg []byte, sender data.Node) bool {
-	m.logger.Println("received aggregation msg", msgType, string(msg), "from", sender.ID)
+	m.logger.Println("received aggregation msg", tree, msgType, string(msg), "from", sender.ID)
 	network := m.resolveNetwork(tree.Id)
 	if network == nil {
 		m.logger.Println("unknown network on message received", tree, msgType, string(msg))
@@ -166,10 +173,10 @@ func (m *Monoceros) onMessage(tree plumtree.TreeMetadata, msgType string, msg []
 		err := json.Unmarshal(msg, &list)
 		if err != nil {
 			m.logger.Println("error while unmarshalling rank list", msg)
-			return false
+			return true
 		}
 		go m.onRanklist(network, list)
-		return false
+		return true
 	}
 	return true
 }
@@ -197,8 +204,8 @@ func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMe
 		return
 	}
 	req := network.activeRequests[index]
-	senderIndex := slices.IndexFunc(req.WaitingFor, func(p hyparview.Peer) bool {
-		return p.Node.ID == sender.ID
+	senderIndex := slices.IndexFunc(req.WaitingFor, func(p data.Node) bool {
+		return p.ID == sender.ID
 	})
 	if senderIndex < 0 {
 		m.logger.Println("could not find sender in active request", req.WaitingFor, "sender", sender)
@@ -217,13 +224,13 @@ func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMe
 }
 
 func (m *Monoceros) onRanklist(network *TreeOverlay, list RankList) {
+	m.logger.Println("received rank list", list)
 	network.rank = GetNodeRank(m.config.NodeID, list.List)
+	m.logger.Println("rank", network.rank)
 }
 
 func (m *Monoceros) processAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, req AggregationReq) {
-	if network.lastAggregationTime < req.Timestamp {
-		network.lastAggregationTime = req.Timestamp
-	}
+	network.lastAggregationTime = int64(math.Max(float64(req.Timestamp), float64(network.lastAggregationTime)))
 	localVal := m.config.NodeID
 	localScores := map[int64]float64{m.config.NodeID: float64(m.config.NodeID)}
 	receivers, err := network.plumtree.GetChildren(tree.Id)
@@ -246,12 +253,12 @@ func (m *Monoceros) processAggregationReq(network *TreeOverlay, tree plumtree.Tr
 
 func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, timestamp int64, value int64, scores map[int64]float64) {
 	m.logger.Println("complete aggregation req", network, tree)
-	parent, err := network.plumtree.GetParent(tree.Id)
-	m.logger.Println(parent)
-	m.logger.Println(err)
+	// parent, err := network.plumtree.GetParent(tree.Id)
+	// m.logger.Println(parent)
+	// m.logger.Println(err)
 	m.logger.Println(network.local)
 	m.logger.Println(tree.Id)
-	if parent != nil && err == nil {
+	if network.plumtree.HasParent(tree.Id) {
 		resp := AggregationResp{
 			Timestamp: timestamp,
 			Aggregate: value,
@@ -262,13 +269,14 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 			m.logger.Println("error marshalling aggregation resp", err)
 			return
 		}
-		err = network.plumtree.Send(tree.Id, "AGGREGATION_RESP", respBytes, parent)
+		err = network.plumtree.SendToParent(tree.Id, "AGGREGATION_RESP", respBytes)
 		if err != nil {
 			m.logger.Println("error sending aggregation resp", err)
 		}
 	} else if network.local != nil && tree.Id == network.local.Id {
 		m.logger.Println("req done")
 		network.history[timestamp] = value
+		m.logger.Println("history", network.history)
 		list, err := RankList{List: scores}.Serialize()
 		if err != nil {
 			m.logger.Println("error marshalling rank list", err)
@@ -308,18 +316,18 @@ func (m *Monoceros) resolveNetwork(treeId string) *TreeOverlay {
 	return nil
 }
 
-func IntersectPeers(a, b []hyparview.Peer) []hyparview.Peer {
+func IntersectPeers(a, b []data.Node) []data.Node {
 	idSet := make(map[int64]struct{})
-	var result []hyparview.Peer
+	var result []data.Node
 
 	// Build a set of Node.IDs from slice b
 	for _, peer := range b {
-		idSet[peer.Node.ID] = struct{}{}
+		idSet[peer.ID] = struct{}{}
 	}
 
 	// Check which peers from slice a exist in b (by Node.ID)
 	for _, peer := range a {
-		if _, found := idSet[peer.Node.ID]; found {
+		if _, found := idSet[peer.ID]; found {
 			result = append(result, peer)
 		}
 	}
