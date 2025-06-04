@@ -133,7 +133,7 @@ func (m *Monoceros) initAggregation(network *TreeOverlay) {
 			m.logger.Println("error serializing aggregation request", err)
 			continue
 		}
-		err = network.plumtree.Broadcast(network.local.Id, AGGREGATION_REQ_MSG_TYPE, msgBytes)
+		err = network.plumtree.Gossip(network.local.Id, AGGREGATION_REQ_MSG_TYPE, msgBytes)
 		if err != nil {
 			m.logger.Println("error broadcasting aggregation request", err)
 		}
@@ -303,6 +303,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 	m.logger.Println(network.local)
 	m.logger.Println(tree.Id)
 	if network.plumtree.HasParent(tree.Id) {
+		m.logger.Println("has parent")
 		var resp any = nil
 		var respType string = ""
 		if abort {
@@ -343,7 +344,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 				m.logger.Println("error marshalling rank list", err)
 			} else {
 				m.logger.Println("sending rank list", list)
-				err = network.plumtree.Broadcast(tree.Id, RANK_LIST_MSG_TYPE, list)
+				err = network.plumtree.Gossip(tree.Id, RANK_LIST_MSG_TYPE, list)
 				if err != nil {
 					m.logger.Println("error sending rank list", err)
 				} else {
@@ -353,6 +354,8 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 			// eval rules
 			// demote if necessary and possible
 		}
+	} else {
+		m.logger.Println("no conditions met")
 	}
 }
 
@@ -381,28 +384,22 @@ func (m *Monoceros) resolveNetwork(treeId string) *TreeOverlay {
 func IntersectPeers(a, b []data.Node) []data.Node {
 	idSet := make(map[string]struct{})
 	var result []data.Node
-
-	// Build a set of Node.IDs from slice b
 	for _, peer := range b {
 		idSet[peer.ID] = struct{}{}
 	}
-
-	// Check which peers from slice a exist in b (by Node.ID)
 	for _, peer := range a {
 		if _, found := idSet[peer.ID]; found {
 			result = append(result, peer)
 		}
 	}
-
 	return result
 }
 
 func GetNodeRank(nodeID string, scores map[string]float64) int64 {
 	targetScore, exists := scores[nodeID]
 	if !exists {
-		return -1 // or return 0 or error if node is not in the map
+		return -1
 	}
-
 	rank := int64(1)
 	for id, score := range scores {
 		if id == nodeID {
