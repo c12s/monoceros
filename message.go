@@ -2,28 +2,31 @@ package monoceros
 
 import "encoding/json"
 
+const (
+	AGGREGATION_REQ_MSG_TYPE  = "A_REQ"
+	AGGREGATION_RESP_MSG_TYPE = "A_RESP"
+	ABORT_RESP_MSG_TYPE       = "ABORT_RESP"
+	RANK_LIST_MSG_TYPE        = "RL"
+)
+
 type AggregationReq struct {
 	Timestamp int64
-}
-
-func (r AggregationReq) Serialize() ([]byte, error) {
-	return json.Marshal(r)
 }
 
 type AggregationResp struct {
 	Timestamp int64
 	Aggregate int64
-	Scores    map[int64]float64
+	Scores    map[string]float64
 }
 
-func (r AggregationResp) Serialize() ([]byte, error) {
-	return json.Marshal(r)
+type AbortResp struct {
+	Timestamp int64
 }
 
 type RankList struct {
-	List map[int64]float64
+	List map[string]float64
 }
 
-func (r RankList) Serialize() ([]byte, error) {
-	return json.Marshal(r)
+func Serialize(v any) ([]byte, error) {
+	return json.Marshal(v)
 }

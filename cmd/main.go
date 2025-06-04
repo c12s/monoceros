@@ -5,7 +5,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -28,29 +27,29 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println(hvCfg)
+	// log.Println(hvCfg)
 
 	plumtreeCfg := plumtree.Config{}
 	err = env.Parse(&plumtreeCfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println(plumtreeCfg)
+	// log.Println(plumtreeCfg)
 
 	monocerosCfg := monoceros.Config{}
 	err = env.Parse(&monocerosCfg)
 	if err != nil {
 		log.Fatal(err)
 	}
-	log.Println(monocerosCfg)
+	// log.Println(monocerosCfg)
 
 	self := data.Node{
 		ID:            hvCfg.NodeID,
 		ListenAddress: hvCfg.ListenAddress,
 	}
 	logger := log.New(&lumberjack.Logger{
-		Filename: fmt.Sprintf("log/%d.log", monocerosCfg.NodeID),
-	}, strconv.Itoa(int(monocerosCfg.NodeID)), log.LstdFlags|log.Lshortfile)
+		Filename: fmt.Sprintf("log/%s.log", monocerosCfg.NodeID),
+	}, monocerosCfg.NodeID, log.LstdFlags|log.Lshortfile)
 
 	connManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(self.ListenAddress))
 	hyparview, err := hyparview.NewHyParView(hvCfg.HyParViewConfig, self, connManager, logger)
@@ -63,12 +62,12 @@ func main() {
 	}
 	time.Sleep(time.Duration(monocerosCfg.JoinWait) * time.Second)
 	l1 := log.New(&lumberjack.Logger{
-		Filename: fmt.Sprintf("log/pt_%d.log", monocerosCfg.NodeID),
-	}, strconv.Itoa(int(monocerosCfg.NodeID)), log.LstdFlags|log.Lshortfile)
+		Filename: fmt.Sprintf("log/pt_%s.log", monocerosCfg.NodeID),
+	}, monocerosCfg.NodeID, log.LstdFlags|log.Lshortfile)
 	tree := plumtree.NewPlumtree(plumtreeCfg, hyparview, l1)
 	l2 := log.New(&lumberjack.Logger{
-		Filename: fmt.Sprintf("log/mc_%d.log", monocerosCfg.NodeID),
-	}, strconv.Itoa(int(monocerosCfg.NodeID)), log.LstdFlags|log.Lshortfile)
+		Filename: fmt.Sprintf("log/mc_%s.log", monocerosCfg.NodeID),
+	}, monocerosCfg.NodeID, log.LstdFlags|log.Lshortfile)
 	mc := monoceros.NewMonoceros(tree, monocerosCfg, l2)
 	mc.Start()
 
