@@ -1,6 +1,10 @@
 package monoceros
 
-import "encoding/json"
+import (
+	"encoding/json"
+
+	"github.com/c12s/hyparview/data"
+)
 
 const (
 	AGGREGATION_REQ_MSG_TYPE  = "A_REQ"
@@ -29,4 +33,13 @@ type RankList struct {
 
 func Serialize(v any) ([]byte, error) {
 	return json.Marshal(v)
+}
+
+const (
+	RRUPDATE_MSG_TYPE byte = 1
+)
+
+type RRUpdate struct {
+	Joined bool
+	Node   data.Node
 }
