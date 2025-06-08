@@ -6,7 +6,6 @@ require (
 	github.com/c12s/hyparview v1.0.0
 	github.com/c12s/plumtree v1.0.0
 	github.com/caarlos0/env v3.5.0+incompatible
-	github.com/natefinch/lumberjack v2.0.0+incompatible
 )
 
 require github.com/stretchr/testify v1.10.0 // indirect

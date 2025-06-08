@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/c12s/hyparview/data"
 	"github.com/c12s/hyparview/hyparview"
@@ -14,123 +13,128 @@ import (
 	"github.com/c12s/monoceros"
 	"github.com/c12s/plumtree"
 	"github.com/caarlos0/env"
-	"github.com/natefinch/lumberjack"
 )
 
 func main() {
-	rnHvCfg := hyparview.Config{
-		NodeID:             os.Getenv("NODE_ID"),
-		ListenAddress:      os.Getenv("RN_LISTEN_ADDR"),
-		ContactNodeID:      os.Getenv("RN_CONTACT_NODE_ID"),
-		ContactNodeAddress: os.Getenv("RN_CONTACT_NODE_ADDR"),
-	}
-	// err := env.Parse(&hvCfg)
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	err := env.Parse(&rnHvCfg.HyParViewConfig)
+	// CONFIG
+
+	hvConfig := hyparview.Config{}
+	err := env.Parse(&hvConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
-	gnHvCfh := hyparview.Config{
-		NodeID:             os.Getenv("NODE_ID"),
-		ListenAddress:      os.Getenv("GN_LISTEN_ADDR"),
-		ContactNodeID:      os.Getenv("GN_CONTACT_NODE_ID"),
-		ContactNodeAddress: os.Getenv("GN_CONTACT_NODE_ADDR"),
-	}
-	gnHvCfh.HyParViewConfig = rnHvCfg.HyParViewConfig
 
-	rrnHvCfh := hyparview.Config{
-		NodeID:        os.Getenv("NODE_ID"),
-		ListenAddress: os.Getenv("RRN_LISTEN_ADDR"),
-	}
-	rrnHvCfh.HyParViewConfig = rnHvCfg.HyParViewConfig
-	log.Println(rnHvCfg)
-	log.Println(gnHvCfh)
-	log.Println(rrnHvCfh)
-
-	plumtreeCfg := plumtree.Config{}
-	err = env.Parse(&plumtreeCfg)
+	ptConfig := plumtree.Config{}
+	err = env.Parse(&ptConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// log.Println(plumtreeCfg)
 
-	monocerosCfg := monoceros.Config{}
-	err = env.Parse(&monocerosCfg)
+	aggConfig := monoceros.AggregationConfig{}
+	err = env.Parse(&aggConfig)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// log.Println(monocerosCfg)
+
+	mcConfig := monoceros.Config{
+		Aggregation: aggConfig,
+	}
+	err = env.Parse(&mcConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println(mcConfig)
+
+	// loggers
+
+	gnHvLogFile, err := os.Create(fmt.Sprintf("log/gn_hv_%s.log", mcConfig.NodeID))
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer gnHvLogFile.Close()
+	gnHvLogger := log.New(gnHvLogFile, "", log.LstdFlags|log.Lshortfile)
+
+	rnHvLogFile, err := os.Create(fmt.Sprintf("log/rn_hv_%s.log", mcConfig.NodeID))
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer rnHvLogFile.Close()
+	rnHvLogger := log.New(rnHvLogFile, "", log.LstdFlags|log.Lshortfile)
+
+	rrnHvLogFile, err := os.Create(fmt.Sprintf("log/rrn_hv_%s.log", mcConfig.NodeID))
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer rrnHvLogFile.Close()
+	rrnHvLogger := log.New(rrnHvLogFile, "", log.LstdFlags|log.Lshortfile)
+
+	rnPtLogFile, err := os.Create(fmt.Sprintf("log/rn_pt_%s.log", mcConfig.NodeID))
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer rnPtLogFile.Close()
+	rnPtLogger := log.New(rnPtLogFile, "", log.LstdFlags|log.Lshortfile)
+
+	rrnPtLogFile, err := os.Create(fmt.Sprintf("log/rrn_pt_%s.log", mcConfig.NodeID))
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer rrnPtLogFile.Close()
+	rrnPtLogger := log.New(rrnPtLogFile, "", log.LstdFlags|log.Lshortfile)
+
+	mcLogFile, err := os.Create(fmt.Sprintf("log/mc_%s.log", mcConfig.NodeID))
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer mcLogFile.Close()
+	mcLogger := log.New(mcLogFile, "", log.LstdFlags|log.Lshortfile)
+
+	// INIT
 
 	// global network setup
-	gnSelf := data.Node{
-		ID:            gnHvCfh.NodeID,
-		ListenAddress: gnHvCfh.ListenAddress,
-	}
-	gnHvLogger := log.New(&lumberjack.Logger{
-		Filename: fmt.Sprintf("log/gn_hv_%s.log", monocerosCfg.NodeID),
-	}, monocerosCfg.NodeID, log.LstdFlags|log.Lshortfile)
 
+	gnSelf := data.Node{
+		ID:            mcConfig.NodeID,
+		ListenAddress: mcConfig.GNListenAddr,
+	}
 	gnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(gnSelf.ListenAddress))
-	gnHv, err := hyparview.NewHyParView(gnHvCfh.HyParViewConfig, gnSelf, gnConnManager, gnHvLogger)
+	gnHv, err := hyparview.NewHyParView(hvConfig, gnSelf, gnConnManager, gnHvLogger)
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = gnHv.Join(gnHvCfh.ContactNodeID, gnHvCfh.ContactNodeAddress)
-	if err != nil {
-		log.Fatal(err)
-	}
-	gn := monoceros.NewGossipNode(gnHv, gnHvLogger)
-	// time.Sleep(time.Duration(monocerosCfg.JoinWait) * time.Second)
+	gn := monoceros.NewGossipNode(gnHv)
 
 	// regional network setup
-	self := data.Node{
-		ID:            rnHvCfg.NodeID,
-		ListenAddress: rnHvCfg.ListenAddress,
-	}
-	rnHvLogger := log.New(&lumberjack.Logger{
-		Filename: fmt.Sprintf("log/rn_hv_%s.log", monocerosCfg.NodeID),
-	}, monocerosCfg.NodeID, log.LstdFlags|log.Lshortfile)
 
-	connManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(self.ListenAddress))
-	hv, err := hyparview.NewHyParView(rnHvCfg.HyParViewConfig, self, connManager, rnHvLogger)
+	// hyparview
+	rnSelf := data.Node{
+		ID:            mcConfig.NodeID,
+		ListenAddress: mcConfig.RNListenAddr,
+	}
+	rnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(rnSelf.ListenAddress))
+	rnHv, err := hyparview.NewHyParView(hvConfig, rnSelf, rnConnManager, rnHvLogger)
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = hv.Join(rnHvCfg.ContactNodeID, rnHvCfg.ContactNodeAddress)
-	if err != nil {
-		log.Fatal(err)
-	}
-	time.Sleep(time.Duration(monocerosCfg.JoinWait) * time.Second)
-
-	rnPtLogger := log.New(&lumberjack.Logger{
-		Filename: fmt.Sprintf("log/rn_pt_%s.log", monocerosCfg.NodeID),
-	}, monocerosCfg.NodeID, log.LstdFlags|log.Lshortfile)
-	tree := plumtree.NewPlumtree(plumtreeCfg, hv, rnPtLogger)
+	// plumtree
+	rnTree := plumtree.NewPlumtree(ptConfig, rnHv, rnPtLogger)
 
 	// regional roots network
-	selfRRN := data.Node{
-		ID:            rrnHvCfh.NodeID,
-		ListenAddress: rrnHvCfh.ListenAddress,
+
+	// hyparview
+	rrnSelf := data.Node{
+		ID:            mcConfig.NodeID,
+		ListenAddress: mcConfig.RRNListenAddr,
 	}
-	rrnHvLogger := log.New(&lumberjack.Logger{
-		Filename: fmt.Sprintf("log/rrn_hv_%s.log", monocerosCfg.NodeID),
-	}, monocerosCfg.NodeID, log.LstdFlags|log.Lshortfile)
-	connManagerRRN := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(selfRRN.ListenAddress))
-	hvRRN, err := hyparview.NewHyParView(rrnHvCfh.HyParViewConfig, selfRRN, connManagerRRN, rrnHvLogger)
+	rrnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(rrnSelf.ListenAddress))
+	rrnHv, err := hyparview.NewHyParView(hvConfig, rrnSelf, rrnConnManager, rrnHvLogger)
 	if err != nil {
 		log.Fatal(err)
 	}
-	rrnPtLogger := log.New(&lumberjack.Logger{
-		Filename: fmt.Sprintf("log/rrn_pt_%s.log", monocerosCfg.NodeID),
-	}, monocerosCfg.NodeID, log.LstdFlags|log.Lshortfile)
-	treeRRN := plumtree.NewPlumtree(plumtreeCfg, hvRRN, rrnPtLogger)
+	rrnTree := plumtree.NewPlumtree(ptConfig, rrnHv, rrnPtLogger)
+
 	// monoceros setup
-	mcLogger := log.New(&lumberjack.Logger{
-		Filename: fmt.Sprintf("log/mc_%s.log", monocerosCfg.NodeID),
-	}, monocerosCfg.NodeID, log.LstdFlags|log.Lshortfile)
-	mc := monoceros.NewMonoceros(tree, treeRRN, gn, monocerosCfg, mcLogger)
+	mc := monoceros.NewMonoceros(rnTree, rrnTree, gn, mcConfig, mcLogger)
 	mc.Start()
 
 	quit := make(chan os.Signal, 1)

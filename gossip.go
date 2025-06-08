@@ -15,15 +15,13 @@ import (
 type GossipNode struct {
 	membership   plumtree.MembershipProtocol
 	seenMessages map[string]bool
-	logger       *log.Logger
 	handler      func(msg []byte)
 }
 
-func NewGossipNode(membership plumtree.MembershipProtocol, logger *log.Logger) *GossipNode {
+func NewGossipNode(membership plumtree.MembershipProtocol) *GossipNode {
 	gn := &GossipNode{
 		membership:   membership,
 		seenMessages: make(map[string]bool),
-		logger:       logger,
 	}
 	gn.membership.AddCustomMsgHandler(gn.onGossipReceived)
 	return gn
@@ -37,12 +35,12 @@ func (gn *GossipNode) Broadcast(msg []byte) {
 	hashFn := fnv.New64()
 	_, err := hashFn.Write(msgBytes)
 	if err != nil {
-		gn.logger.Println("Error creating hash:", err)
+		log.Println("Error creating hash:", err)
 		return
 	}
 	msgId := hashFn.Sum(nil)
 	if gn.seenMessages[string(msgId)] {
-		gn.logger.Println("msg already seen:", msg)
+		log.Println("msg already seen:", msg)
 		return
 	}
 	gn.seenMessages[string(msgId)] = true
@@ -55,7 +53,7 @@ func (gn *GossipNode) Broadcast(msg []byte) {
 			Payload: msg,
 		})
 		if err != nil {
-			gn.logger.Println("error while broadcasting msg in global network", err)
+			log.Println("error while broadcasting msg in global network", err)
 		}
 	}
 }
@@ -64,24 +62,24 @@ func (gn *GossipNode) onGossipReceived(msgBytes1 []byte, from transport.Conn) er
 	msgBytes := make([]byte, 0)
 	err := json.Unmarshal(msgBytes1, &msgBytes)
 	if err != nil {
-		gn.logger.Println(err)
+		log.Println(err)
 		return err
 	}
-	gn.logger.Println("received gossip msg", msgBytes)
+	log.Println("received gossip msg", msgBytes)
 	hashFn := fnv.New64()
 	_, err = hashFn.Write(msgBytes)
 	if err != nil {
-		gn.logger.Println("Error creating hash:", err)
+		log.Println("Error creating hash:", err)
 		return nil
 	}
 	msgId := hashFn.Sum(nil)
 	if gn.seenMessages[string(msgId)] {
-		gn.logger.Println("msg already seen:", msgBytes)
+		log.Println("msg already seen:", msgBytes)
 		return nil
 	}
 	gn.seenMessages[string(msgId)] = true
 	msg := msgBytes[8:]
-	gn.logger.Println("Received:", msg)
+	log.Println("Received:", msg)
 	if gn.handler != nil {
 		gn.handler(msg)
 	}
@@ -94,7 +92,7 @@ func (gn *GossipNode) onGossipReceived(msgBytes1 []byte, from transport.Conn) er
 			Payload: msgBytes,
 		})
 		if err != nil {
-			gn.logger.Println("error while forwarding msg in global network", err)
+			log.Println("error while forwarding msg in global network", err)
 		}
 	}
 	return nil
