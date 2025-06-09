@@ -16,6 +16,7 @@ type AggregationConfig struct {
 
 type Config struct {
 	NodeID        string `env:"NODE_ID"`
+	Region        string `env:"NODE_REGION"`
 	GNListenAddr  string `env:"GN_LISTEN_ADDR"`
 	RNListenAddr  string `env:"RN_LISTEN_ADDR"`
 	RRNListenAddr string `env:"RRN_LISTEN_ADDR"`

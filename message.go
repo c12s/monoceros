@@ -36,10 +36,16 @@ func Serialize(v any) ([]byte, error) {
 }
 
 const (
-	RRUPDATE_MSG_TYPE byte = 1
+	RRUPDATE_MSG_TYPE  byte = 1
+	SYNC_REQ_MSG_TYPE  byte = 2
+	SYNC_RESP_MSG_TYPE byte = 3
 )
 
 type RRUpdate struct {
 	Joined bool
 	Node   data.Node
+}
+
+type SyncStateResp struct {
+	RegionalRoots map[string]string
 }
