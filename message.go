@@ -7,10 +7,10 @@ import (
 )
 
 const (
-	AGGREGATION_REQ_MSG_TYPE  = "A_REQ"
-	AGGREGATION_RESP_MSG_TYPE = "A_RESP"
-	ABORT_RESP_MSG_TYPE       = "ABORT_RESP"
-	RANK_LIST_MSG_TYPE        = "RL"
+	AGGREGATION_REQ_MSG_TYPE    = "A_REQ"
+	AGGREGATION_RESP_MSG_TYPE   = "A_RESP"
+	ABORT_RESP_MSG_TYPE         = "ABORT_RESP"
+	AGGREGATION_RESULT_MSG_TYPE = "A_RESULT"
 )
 
 type AggregationReq struct {
@@ -19,7 +19,7 @@ type AggregationReq struct {
 
 type AggregationResp struct {
 	Timestamp int64
-	Aggregate int64
+	Aggregate []IntermediateMetric
 	Scores    map[string]float64
 }
 
@@ -27,8 +27,12 @@ type AbortResp struct {
 	Timestamp int64
 }
 
-type RankList struct {
-	List map[string]float64
+type AggregationResult struct {
+	NetworkID string
+	Timestamp int64
+	RankList  map[string]float64
+	Aggregate string
+	IMs       []IntermediateMetric
 }
 
 func Serialize(v any) ([]byte, error) {

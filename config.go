@@ -15,14 +15,15 @@ type AggregationConfig struct {
 }
 
 type Config struct {
-	NodeID        string `env:"NODE_ID"`
-	Region        string `env:"NODE_REGION"`
-	GNListenAddr  string `env:"GN_LISTEN_ADDR"`
-	RNListenAddr  string `env:"RN_LISTEN_ADDR"`
-	RRNListenAddr string `env:"RRN_LISTEN_ADDR"`
-	GNContactID   string `env:"GN_CONTACT_NODE_ID"`
-	GNContactAddr string `env:"GN_CONTACT_NODE_ADDR"`
-	RNContactID   string `env:"RN_CONTACT_NODE_ID"`
-	RNContactAddr string `env:"RN_CONTACT_NODE_ADDR"`
-	Aggregation   AggregationConfig
+	NodeID         string `env:"NODE_ID"`
+	Region         string `env:"NODE_REGION"`
+	HTTPServerAddr string `env:"HTTP_SERVER_ADDR"`
+	GNListenAddr   string `env:"GN_LISTEN_ADDR"`
+	RNListenAddr   string `env:"RN_LISTEN_ADDR"`
+	RRNListenAddr  string `env:"RRN_LISTEN_ADDR"`
+	GNContactID    string `env:"GN_CONTACT_NODE_ID"`
+	GNContactAddr  string `env:"GN_CONTACT_NODE_ADDR"`
+	RNContactID    string `env:"RN_CONTACT_NODE_ID"`
+	RNContactAddr  string `env:"RN_CONTACT_NODE_ADDR"`
+	Aggregation    AggregationConfig
 }

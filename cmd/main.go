@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -137,10 +139,26 @@ func main() {
 	mc := monoceros.NewMonoceros(rnTree, rrnTree, gn, mcConfig, mcLogger)
 	mc.Start()
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("/metrics", mc.MetricsHandler)
+	server := http.Server{
+		Addr:    mcConfig.HTTPServerAddr,
+		Handler: mux,
+	}
+	go func() {
+		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("HTTP server error: %v", err)
+		}
+	}()
+
 	quit := make(chan os.Signal, 1)
 
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	fmt.Println("Waiting for quit signal...")
 	<-quit
 	fmt.Println("Quit signal received. Shutting down.")
+
+	if err := server.Close(); err != nil {
+		log.Fatalf("HTTP close error: %v", err)
+	}
 }
