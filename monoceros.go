@@ -44,25 +44,27 @@ type TreeOverlay struct {
 }
 
 type Monoceros struct {
-	GN              *GossipNode
-	RN              *TreeOverlay
-	RRN             *TreeOverlay
-	regionalRoots   map[string]string
-	rules           []AggregationRule
-	latestMetrics   map[string]string
-	latestIM        map[string][]IntermediateMetric
-	latestMetricsTs map[string]int64
-	targets         []ScrapeTarget
-	config          Config
-	logger          *log.Logger
-	lock            *sync.Mutex
-	synced          bool
+	GN                    *GossipNode
+	RN                    *TreeOverlay
+	RRN                   *TreeOverlay
+	regionalRootAddresses map[string]string
+	regionalRootRegions   map[string]string
+	rules                 []AggregationRule
+	latestMetrics         map[string]string
+	latestIM              map[string][]IntermediateMetric
+	latestMetricsTs       map[string]int64
+	targets               []ScrapeTarget
+	config                Config
+	logger                *log.Logger
+	lock                  *sync.Mutex
+	synced                bool
 }
 
 func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, logger *log.Logger) *Monoceros {
 	m := &Monoceros{
-		GN:            gn,
-		regionalRoots: make(map[string]string),
+		GN:                    gn,
+		regionalRootAddresses: make(map[string]string),
+		regionalRootRegions:   make(map[string]string),
 		rules: []AggregationRule{
 			{
 				InputSelector: MetricMetadata{
@@ -170,9 +172,9 @@ func (m *Monoceros) init() {
 	go m.initAggregation(m.RN)
 	go m.tryTriggerAggregation(m.RN)
 
-	m.initRRN()
-	go m.initAggregation(m.RRN)
-	go m.tryTriggerAggregation(m.RRN)
+	// m.initRRN()
+	// go m.initAggregation(m.RRN)
+	// go m.tryTriggerAggregation(m.RRN)
 }
 
 // unlocked
@@ -189,16 +191,17 @@ func (m *Monoceros) initRN() {
 
 // unlocked
 func (m *Monoceros) initRRN() {
-	m.RRN.plumtree.OnTreeDestroyed(func(tree plumtree.TreeMetadata) {
-		m.cleanUpTree(m.RRN, tree)
-	})
-	m.RRN.plumtree.OnGossip(m.onGossipMsg)
-	m.RRN.plumtree.OnDirect(m.onDirectMsg)
-	go m.tryPromote(m.RRN)
+	// m.RRN.plumtree.OnTreeDestroyed(func(tree plumtree.TreeMetadata) {
+	// 	m.cleanUpTree(m.RRN, tree)
+	// })
+	// m.RRN.plumtree.OnGossip(m.onGossipMsg)
+	// m.RRN.plumtree.OnDirect(m.onDirectMsg)
+	// go m.tryPromote(m.RRN)
 }
 
 // locked
 func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata) {
+	m.logger.Println("try lock")
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.logger.Println("clean up tree", network.ID, tree)
@@ -207,7 +210,7 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 		return r.Tree.Id == tree.Id
 	})
 	m.logger.Println("active requests", network.activeRequests)
-	if tree.Id == network.local.Id {
+	if network.local != nil && tree.Id == network.local.Id {
 		network.local = nil
 		m.logger.Println("local tree removed")
 	}
@@ -215,14 +218,27 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 
 // locked
 func (m *Monoceros) tryPromote(network *TreeOverlay) {
-	for range time.NewTicker(1 * time.Second).C {
+	// time.Sleep(time.Duration(2*m.config.Aggregation.TAggSec) * time.Second)
+	for range time.NewTicker(time.Duration(m.config.Aggregation.TAggSec) * time.Second).C {
+		m.logger.Println("try lock")
 		m.lock.Lock()
+		if !network.joined || network.local != nil {
+			m.lock.Unlock()
+			continue
+		}
+		m.logger.Println("try promote")
 		peersNum := network.plumtree.GetPeersNum()
-		expectedAggregationTime := (network.lastAggregationTime + 2*(network.rank*m.config.Aggregation.TAggSec))
+		expectedAggregationTime := network.lastAggregationTime + 3*m.config.Aggregation.TAggSec
+		// expectedAggregationTime := (network.lastAggregationTime + 5*(network.rank*m.config.Aggregation.TAggSec))
 		now := time.Now().Unix()
+		m.logger.Println("peers num", peersNum, "now time", now, "expected aggregation time", expectedAggregationTime)
 		// da se ne bi menjao root svaki put kad se prikljuci novi cvor
-		// if (peersNum == 0 || (netwok.rank > 0 && expectedAggregationTime < now)) && network.local == nil {
-		if network.joined && (peersNum == 0 || expectedAggregationTime < now) && network.local == nil {
+		// if (peersNum == 0 || (network.rank > 0 && expectedAggregationTime < now)) && network.local == nil {
+		// if network.joined && (peersNum == 0 || expectedAggregationTime < now) && network.local == nil {
+
+		// kreni ako ti poruka nije stigla i (u slucaju rn) ne postoji drugi root u tvom regionu
+		// if expectedAggregationTime < now && (!slices.Contains(slices.Collect(maps.Values(m.regionalRootRegions)), m.config.Region) || network.ID == m.RRN.ID) {
+		if expectedAggregationTime < now {
 			m.promote(network)
 		}
 		m.lock.Unlock()
@@ -234,16 +250,17 @@ func (m *Monoceros) promote(network *TreeOverlay) {
 	m.logger.Println("promoting", network.ID)
 	tree := plumtree.TreeMetadata{
 		Id:    fmt.Sprintf("%s_%s", network.ID, m.config.NodeID),
-		Score: 1,
+		Score: m.config.NodeID,
 	}
+	network.local = &tree
 	m.lock.Unlock()
 	err := network.plumtree.ConstructTree(tree)
+	m.logger.Println("try lock")
 	m.lock.Lock()
 	if err != nil {
 		m.logger.Println("err while promoting node", err)
-		return
+		network.local = nil
 	}
-	network.local = &tree
 }
 
 // unlocked
@@ -258,6 +275,7 @@ func (m *Monoceros) tryTriggerAggregation(network *TreeOverlay) {
 // locked
 func (m *Monoceros) initAggregation(network *TreeOverlay) {
 	for range network.aggregate {
+		m.logger.Println("try lock")
 		m.lock.Lock()
 		if network.local == nil {
 			m.lock.Unlock()
@@ -284,6 +302,7 @@ func (m *Monoceros) initAggregation(network *TreeOverlay) {
 
 // locked
 func (m *Monoceros) onGossipMsg(tree plumtree.TreeMetadata, msgType string, msg []byte, sender data.Node) bool {
+	m.logger.Println("try lock")
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.logger.Println("received aggregation msg", tree, msgType, string(msg), "from", sender.ID)
@@ -316,6 +335,7 @@ func (m *Monoceros) onGossipMsg(tree plumtree.TreeMetadata, msgType string, msg 
 
 // locked
 func (m *Monoceros) onDirectMsg(tree plumtree.TreeMetadata, msgType string, msg []byte, sender data.Node) {
+	m.logger.Println("try lock")
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.logger.Println("received direct msg", tree, msgType, string(msg), "from", sender.ID)
@@ -345,6 +365,7 @@ func (m *Monoceros) onDirectMsg(tree plumtree.TreeMetadata, msgType string, msg 
 
 // locked
 func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
+	m.logger.Println("try lock")
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.logger.Println("received global network msg", msgBytes)
@@ -358,16 +379,20 @@ func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
 			return false
 		}
 		if msg.Joined {
-			m.regionalRoots[msg.Node.ID] = msg.Node.ListenAddress
+			m.regionalRootAddresses[msg.NodeInfo.ID] = msg.NodeInfo.ListenAddress
+			m.regionalRootRegions[msg.NodeInfo.ID] = msg.Region
 		} else {
-			delete(m.regionalRoots, msg.Node.ID)
+			delete(m.regionalRootAddresses, msg.NodeInfo.ID)
+			delete(m.regionalRootRegions, msg.NodeInfo.ID)
 		}
-		m.logger.Println(m.regionalRoots)
+		m.logger.Println(m.regionalRootAddresses)
+		m.logger.Println(m.regionalRootRegions)
 		return true
 	} else if msgType == SYNC_REQ_MSG_TYPE {
 		m.logger.Println("received sync req")
 		msg := SyncStateResp{
-			RegionalRoots: m.regionalRoots,
+			RegionalRootAddresses: m.regionalRootAddresses,
+			RegionalRootRegions:   m.regionalRootRegions,
 		}
 		msgBytes, err := json.Marshal(msg)
 		if err != nil {
@@ -397,9 +422,11 @@ func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
 			m.logger.Println("already synced, ignoring msg")
 			return false
 		}
-		m.regionalRoots = msg.RegionalRoots
+		m.regionalRootAddresses = msg.RegionalRootAddresses
+		m.regionalRootRegions = msg.RegionalRootRegions
 		m.synced = true
-		m.logger.Println(m.regionalRoots)
+		m.logger.Println(m.regionalRootAddresses)
+		m.logger.Println(m.regionalRootRegions)
 		m.init()
 		return false
 	} else {
@@ -410,43 +437,81 @@ func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
 
 // locked by caller
 func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, req AggregationReq) bool {
-	if network.local != nil && network.local.Id != tree.Id {
-		if tree.HasHigherScore(*network.local) {
-			m.logger.Println("tree", tree, "has higher score than local tree, destroying ...")
+	// ako je manji score nego lokalno, posalji abort
+	// ako je veci score nego lokalni, obradi
+	if tree.Score < m.config.NodeID && network.plumtree.HasParent(tree.Id) {
+		resp := AbortResp{
+			Timestamp: req.Timestamp,
+		}
+		respBytes, err := Serialize(resp)
+		if err != nil {
+			m.logger.Println("error marshalling abort resp", err)
+			return false
+		} else {
 			m.lock.Unlock()
-			err := network.plumtree.DestroyTree(*network.local)
+			err = network.plumtree.SendToParent(tree.Id, ABORT_RESP_MSG_TYPE, respBytes)
+			m.logger.Println("try lock")
 			m.lock.Lock()
 			if err != nil {
-				m.logger.Println("error while destorying local tree", err)
-			}
-		} else if network.plumtree.HasParent(tree.Id) {
-			resp := AbortResp{
-				Timestamp: req.Timestamp,
-			}
-			respBytes, err := Serialize(resp)
-			if err != nil {
-				m.logger.Println("error marshalling abort resp", err)
+				m.logger.Println("error sending abort resp", err)
+				return false
 			} else {
+				m.logger.Println("local tree", network.local, "has higher score than tree", tree, "destroying ...")
 				m.lock.Unlock()
-				err = network.plumtree.SendToParent(tree.Id, ABORT_RESP_MSG_TYPE, respBytes)
+				err := network.plumtree.DestroyTree(tree)
+				m.logger.Println("try lock")
 				m.lock.Lock()
 				if err != nil {
-					m.logger.Println("error sending abort resp", err)
-				} else {
-					m.logger.Println("local tree", network.local, "has higher score than tree", tree, "destroying ...")
-					m.lock.Unlock()
-					err := network.plumtree.DestroyTree(tree)
-					m.lock.Lock()
-					if err != nil {
-						m.logger.Println("error while destorying local tree", err)
-					}
-					return false
+					m.logger.Println("error while destorying local tree", err)
 				}
+				return false
 			}
 		}
+	} else {
+		m.processAggregationReq(network, tree, req)
+		return true
 	}
-	m.processAggregationReq(network, tree, req)
-	return true
+
+	// if network.local != nil && network.local.Id != tree.Id {
+	// 	if tree.HasHigherScore(*network.local) {
+	// 		m.logger.Println("tree", tree, "has higher score than local tree, destroying ...")
+	// 		m.lock.Unlock()
+	// 		err := network.plumtree.DestroyTree(*network.local)
+	// 		m.logger.Println("try lock")
+	// m.lock.Lock()
+	// 		if err != nil {
+	// 			m.logger.Println("error while destorying local tree", err)
+	// 		}
+	// 	} else if network.plumtree.HasParent(tree.Id) {
+	// 		resp := AbortResp{
+	// 			Timestamp: req.Timestamp,
+	// 		}
+	// 		respBytes, err := Serialize(resp)
+	// 		if err != nil {
+	// 			m.logger.Println("error marshalling abort resp", err)
+	// 		} else {
+	// 			m.lock.Unlock()
+	// 			err = network.plumtree.SendToParent(tree.Id, ABORT_RESP_MSG_TYPE, respBytes)
+	// 			m.logger.Println("try lock")
+	// m.lock.Lock()
+	// 			if err != nil {
+	// 				m.logger.Println("error sending abort resp", err)
+	// 			} else {
+	// 				m.logger.Println("local tree", network.local, "has higher score than tree", tree, "destroying ...")
+	// 				m.lock.Unlock()
+	// 				err := network.plumtree.DestroyTree(tree)
+	// 				m.logger.Println("try lock")
+	// m.lock.Lock()
+	// 				if err != nil {
+	// 					m.logger.Println("error while destorying local tree", err)
+	// 				}
+	// 				return false
+	// 			}
+	// 		}
+	// 	}
+	// }
+	// m.processAggregationReq(network, tree, req)
+	// return true
 }
 
 // locked by caller
@@ -519,6 +584,7 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, result Aggregation
 			}
 			m.lock.Unlock()
 			err = m.RN.plumtree.Gossip(m.RN.local.Id, AGGREGATION_RESULT_MSG_TYPE, resBytes)
+			m.logger.Println("try lock")
 			m.lock.Lock()
 			if err != nil {
 				m.logger.Println("err while sending agg result", err)
@@ -539,6 +605,8 @@ func (m *Monoceros) processAggregationReq(network *TreeOverlay, tree plumtree.Tr
 	if err != nil {
 		m.logger.Println("error while fetching tree children", tree, err)
 	}
+	m.logger.Println("children to send req", receivers)
+	m.logger.Println("has parent", network.plumtree.HasParent(tree.Id))
 	if len(receivers) == 0 {
 		m.completeAggregationReq(network, tree, req.Timestamp, localForAggregation, localScores, false)
 	} else {
@@ -582,6 +650,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 		}
 		m.lock.Unlock()
 		err = network.plumtree.SendToParent(tree.Id, respType, respBytes)
+		m.logger.Println("try lock")
 		m.lock.Lock()
 		if err != nil {
 			m.logger.Println("error sending resp", err)
@@ -592,6 +661,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 			m.logger.Println("should destroy local tree")
 			m.lock.Unlock()
 			err := network.plumtree.DestroyTree(*network.local)
+			m.logger.Println("try lock")
 			m.lock.Lock()
 			if err != nil {
 				m.logger.Println("error while destorying local tree", err)
@@ -617,6 +687,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 				m.logger.Println("sending aggregation result", result)
 				m.lock.Unlock()
 				err = network.plumtree.Gossip(tree.Id, AGGREGATION_RESULT_MSG_TYPE, result)
+				m.logger.Println("try lock")
 				m.lock.Lock()
 				if err != nil {
 					m.logger.Println("error sending aggregation result", err)
@@ -634,6 +705,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 
 // locked
 func (m *Monoceros) syncState() (bool, []byte) {
+	m.logger.Println("try lock")
 	m.lock.Lock()
 	defer m.lock.Unlock()
 	m.logger.Println("global network peer up")
@@ -646,87 +718,94 @@ func (m *Monoceros) syncState() (bool, []byte) {
 
 // locked
 func (m *Monoceros) joinRRN(tree plumtree.TreeMetadata) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.logger.Println("tree constructed in RN, should join RRN", tree)
-	if tree.Id != fmt.Sprintf("%s_%s", m.RN.ID, m.config.NodeID) {
-		m.logger.Println("should not")
-		return
-	}
-	contactedPeer := false
-	for id, address := range m.regionalRoots {
-		err := m.RRN.plumtree.Join(id, address)
-		if err != nil {
-			m.logger.Println("error while joining rrn", err)
-			continue
-		}
-		contactedPeer = true
-		break
-	}
-	if !contactedPeer {
-		err := m.RRN.plumtree.Join(m.config.NodeID, m.RRN.plumtree.ListenAddress())
-		if err != nil {
-			m.logger.Println("error while joining rrn", err)
-		}
-	}
-	m.RRN.joined = true
-	gossip := RRUpdate{
-		Joined: true,
-		Node: data.Node{
-			ID:            m.config.NodeID,
-			ListenAddress: m.RRN.plumtree.ListenAddress(),
-		},
-	}
-	gossipBytes, err := json.Marshal(gossip)
-	if err != nil {
-		m.logger.Println(err)
-		return
-	}
-	gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
-	m.logger.Println("sending rrn update", gossipBytes)
-	m.lock.Unlock()
-	m.GN.Broadcast(gossipBytes)
-	m.lock.Lock()
+	// m.logger.Println("try lock")
+	// m.lock.Lock()
+	// defer m.lock.Unlock()
+	// m.logger.Println("tree constructed in RN, should join RRN", tree)
+	// if tree.Id != fmt.Sprintf("%s_%s", m.RN.ID, m.config.NodeID) {
+	// 	m.logger.Println("should not")
+	// 	return
+	// }
+	// contactedPeer := false
+	// for id, address := range m.regionalRootAddresses {
+	// 	err := m.RRN.plumtree.Join(id, address)
+	// 	if err != nil {
+	// 		m.logger.Println("error while joining rrn", err)
+	// 		continue
+	// 	}
+	// 	contactedPeer = true
+	// 	break
+	// }
+	// if !contactedPeer {
+	// 	err := m.RRN.plumtree.Join(m.config.NodeID, m.RRN.plumtree.ListenAddress())
+	// 	if err != nil {
+	// 		m.logger.Println("error while joining rrn", err)
+	// 	}
+	// }
+	// m.RRN.joined = true
+	// gossip := RRUpdate{
+	// 	Joined: true,
+	// 	NodeInfo: data.Node{
+	// 		ID:            m.config.NodeID,
+	// 		ListenAddress: m.RRN.plumtree.ListenAddress(),
+	// 	},
+	// 	Region: m.config.Region,
+	// }
+	// gossipBytes, err := json.Marshal(gossip)
+	// if err != nil {
+	// 	m.logger.Println(err)
+	// 	return
+	// }
+	// gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
+	// m.logger.Println("sending rrn update", gossipBytes)
+	// m.lock.Unlock()
+	// m.GN.Broadcast(gossipBytes)
+	// m.logger.Println("try lock")
+	// m.lock.Lock()
 }
 
 // locked
 func (m *Monoceros) leaveRRN(tree plumtree.TreeMetadata) {
-	m.lock.Lock()
-	defer m.lock.Unlock()
-	m.logger.Println("tree destroyed in RN, should leave RRN", tree)
-	if tree.Id != fmt.Sprintf("%s_%s", m.RN.ID, m.config.NodeID) {
-		m.logger.Println("should not")
-		return
-	}
-	if m.RRN.local != nil {
-		m.lock.Unlock()
-		err := m.RRN.plumtree.DestroyTree(*m.RRN.local)
-		m.lock.Lock()
-		if err != nil {
-			m.logger.Println(err)
-		}
-	}
-	m.RRN.joined = false
-	m.logger.Println("dosao do leave")
-	m.RRN.plumtree.Leave()
-	m.logger.Println("prosao leave")
-	gossip := RRUpdate{
-		Joined: false,
-		Node: data.Node{
-			ID:            m.config.NodeID,
-			ListenAddress: m.RRN.plumtree.ListenAddress(),
-		},
-	}
-	gossipBytes, err := json.Marshal(gossip)
-	if err != nil {
-		m.logger.Println(err)
-		return
-	}
-	gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
-	m.logger.Println("sending rrn update", gossipBytes)
-	m.lock.Unlock()
-	m.GN.Broadcast(gossipBytes)
-	m.lock.Lock()
+	// m.logger.Println("try lock")
+	// m.lock.Lock()
+	// defer m.lock.Unlock()
+	// m.logger.Println("tree destroyed in RN, should leave RRN", tree)
+	// if tree.Id != fmt.Sprintf("%s_%s", m.RN.ID, m.config.NodeID) {
+	// 	m.logger.Println("should not")
+	// 	return
+	// }
+	// if m.RRN.local != nil {
+	// 	m.lock.Unlock()
+	// 	err := m.RRN.plumtree.DestroyTree(*m.RRN.local)
+	// 	m.logger.Println("try lock")
+	// 	m.lock.Lock()
+	// 	if err != nil {
+	// 		m.logger.Println(err)
+	// 	}
+	// }
+	// m.RRN.joined = false
+	// m.logger.Println("dosao do leave")
+	// m.RRN.plumtree.Leave()
+	// m.logger.Println("prosao leave")
+	// gossip := RRUpdate{
+	// 	Joined: false,
+	// 	NodeInfo: data.Node{
+	// 		ID:            m.config.NodeID,
+	// 		ListenAddress: m.RRN.plumtree.ListenAddress(),
+	// 	},
+	// 	Region: m.config.Region,
+	// }
+	// gossipBytes, err := json.Marshal(gossip)
+	// if err != nil {
+	// 	m.logger.Println(err)
+	// 	return
+	// }
+	// gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
+	// m.logger.Println("sending rrn update", gossipBytes)
+	// m.lock.Unlock()
+	// m.GN.Broadcast(gossipBytes)
+	// m.logger.Println("try lock")
+	// m.lock.Lock()
 }
 
 func (m *Monoceros) resolveNetwork(treeId string) *TreeOverlay {

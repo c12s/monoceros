@@ -46,10 +46,12 @@ const (
 )
 
 type RRUpdate struct {
-	Joined bool
-	Node   data.Node
+	Joined   bool
+	NodeInfo data.Node
+	Region   string
 }
 
 type SyncStateResp struct {
-	RegionalRoots map[string]string
+	RegionalRootAddresses map[string]string
+	RegionalRootRegions   map[string]string
 }

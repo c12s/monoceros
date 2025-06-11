@@ -26,4 +26,5 @@ type Config struct {
 	RNContactID    string `env:"RN_CONTACT_NODE_ID"`
 	RNContactAddr  string `env:"RN_CONTACT_NODE_ADDR"`
 	Aggregation    AggregationConfig
+	LogPath        string `env:"LOG_PATH"`
 }

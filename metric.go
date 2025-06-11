@@ -243,13 +243,41 @@ func imToOpenMetrics(ims []IntermediateMetric) (string, error) {
 func (m *Monoceros) MetricsHandler(w http.ResponseWriter, _ *http.Request) {
 	m.logger.Println("/metrics request")
 	var sb strings.Builder
+	m.logger.Println("try lock")
 	m.lock.Lock()
 	for _, metrics := range m.latestMetrics {
 		sb.WriteString(metrics)
-		sb.WriteString("\n\n")
+		sb.WriteString("\n")
 	}
-	metrics := sb.String()
+	sb.WriteString("# EOF")
+	metrics := removeBlankLines(removeDuplicateLines(sb.String()))
 	m.lock.Unlock()
 	w.Header().Set("Content-Type", "application/openmetrics-text; version=1.0.0; charset=utf-8")
 	fmt.Fprint(w, metrics)
+}
+
+func removeDuplicateLines(input string) string {
+	lines := strings.Split(input, "\n")
+	seen := make(map[string]bool)
+	var result []string
+
+	for _, line := range lines {
+		if !seen[line] {
+			seen[line] = true
+			result = append(result, line)
+		}
+	}
+
+	return strings.Join(result, "\n")
+}
+
+func removeBlankLines(input string) string {
+	var result []string
+	lines := strings.Split(input, "\n")
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			result = append(result, line)
+		}
+	}
+	return strings.Join(result, "\n")
 }

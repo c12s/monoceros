@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/c12s/hyparview/data"
@@ -49,42 +50,42 @@ func main() {
 
 	// loggers
 
-	gnHvLogFile, err := os.Create(fmt.Sprintf("log/gn_hv_%s.log", mcConfig.NodeID))
+	gnHvLogFile, err := os.Create(fmt.Sprintf("%s/gn_hv_%s.log", mcConfig.LogPath, mcConfig.NodeID))
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer gnHvLogFile.Close()
 	gnHvLogger := log.New(gnHvLogFile, "", log.LstdFlags|log.Lshortfile)
 
-	rnHvLogFile, err := os.Create(fmt.Sprintf("log/rn_hv_%s.log", mcConfig.NodeID))
+	rnHvLogFile, err := os.Create(fmt.Sprintf("%s/rn_hv_%s.log", mcConfig.LogPath, mcConfig.NodeID))
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer rnHvLogFile.Close()
 	rnHvLogger := log.New(rnHvLogFile, "", log.LstdFlags|log.Lshortfile)
 
-	rrnHvLogFile, err := os.Create(fmt.Sprintf("log/rrn_hv_%s.log", mcConfig.NodeID))
+	rrnHvLogFile, err := os.Create(fmt.Sprintf("%s/rrn_hv_%s.log", mcConfig.LogPath, mcConfig.NodeID))
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer rrnHvLogFile.Close()
 	rrnHvLogger := log.New(rrnHvLogFile, "", log.LstdFlags|log.Lshortfile)
 
-	rnPtLogFile, err := os.Create(fmt.Sprintf("log/rn_pt_%s.log", mcConfig.NodeID))
+	rnPtLogFile, err := os.Create(fmt.Sprintf("%s/rn_pt_%s.log", mcConfig.LogPath, mcConfig.NodeID))
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer rnPtLogFile.Close()
 	rnPtLogger := log.New(rnPtLogFile, "", log.LstdFlags|log.Lshortfile)
 
-	rrnPtLogFile, err := os.Create(fmt.Sprintf("log/rrn_pt_%s.log", mcConfig.NodeID))
+	rrnPtLogFile, err := os.Create(fmt.Sprintf("%s/rrn_pt_%s.log", mcConfig.LogPath, mcConfig.NodeID))
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
 	defer rrnPtLogFile.Close()
 	rrnPtLogger := log.New(rrnPtLogFile, "", log.LstdFlags|log.Lshortfile)
 
-	mcLogFile, err := os.Create(fmt.Sprintf("log/mc_%s.log", mcConfig.NodeID))
+	mcLogFile, err := os.Create(fmt.Sprintf("%s/mc_%s.log", mcConfig.LogPath, mcConfig.NodeID))
 	if err != nil {
 		log.Fatalf("error opening file: %v", err)
 	}
@@ -99,7 +100,7 @@ func main() {
 		ID:            mcConfig.NodeID,
 		ListenAddress: mcConfig.GNListenAddr,
 	}
-	gnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(gnSelf.ListenAddress))
+	gnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(gnSelf.ListenAddress, ":")[1])))
 	gnHv, err := hyparview.NewHyParView(hvConfig, gnSelf, gnConnManager, gnHvLogger)
 	if err != nil {
 		log.Fatal(err)
@@ -113,7 +114,7 @@ func main() {
 		ID:            mcConfig.NodeID,
 		ListenAddress: mcConfig.RNListenAddr,
 	}
-	rnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(rnSelf.ListenAddress))
+	rnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(rnSelf.ListenAddress, ":")[1])))
 	rnHv, err := hyparview.NewHyParView(hvConfig, rnSelf, rnConnManager, rnHvLogger)
 	if err != nil {
 		log.Fatal(err)
@@ -128,7 +129,7 @@ func main() {
 		ID:            mcConfig.NodeID,
 		ListenAddress: mcConfig.RRNListenAddr,
 	}
-	rrnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(rrnSelf.ListenAddress))
+	rrnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(rrnSelf.ListenAddress, ":")[1])))
 	rrnHv, err := hyparview.NewHyParView(hvConfig, rrnSelf, rrnConnManager, rrnHvLogger)
 	if err != nil {
 		log.Fatal(err)
@@ -142,7 +143,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/metrics", mc.MetricsHandler)
 	server := http.Server{
-		Addr:    mcConfig.HTTPServerAddr,
+		Addr:    fmt.Sprintf("0.0.0.0:%s", strings.Split(mcConfig.HTTPServerAddr, ":")[1]),
 		Handler: mux,
 	}
 	go func() {
