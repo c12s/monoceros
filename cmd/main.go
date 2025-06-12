@@ -50,47 +50,53 @@ func main() {
 
 	// loggers
 
-	gnHvLogFile, err := os.Create(fmt.Sprintf("%s/gn_hv_%s.log", mcConfig.LogPath, mcConfig.NodeID))
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer gnHvLogFile.Close()
-	gnHvLogger := log.New(gnHvLogFile, "", log.LstdFlags|log.Lshortfile)
+	// gnHvLogFile, err := os.Create(fmt.Sprintf("%s/gn_hv_%s.log", mcConfig.LogPath, mcConfig.NodeID))
+	// if err != nil {
+	// 	log.Fatalf("error opening file: %v", err)
+	// }
+	// defer gnHvLogFile.Close()
+	// gnHvLogger := log.New(gnHvLogFile, "", log.LstdFlags|log.Lshortfile)
+	gnHvLogger := log.New(os.Stdout, "GLOBAL HV", log.LstdFlags|log.Lshortfile)
 
-	rnHvLogFile, err := os.Create(fmt.Sprintf("%s/rn_hv_%s.log", mcConfig.LogPath, mcConfig.NodeID))
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer rnHvLogFile.Close()
-	rnHvLogger := log.New(rnHvLogFile, "", log.LstdFlags|log.Lshortfile)
+	// rnHvLogFile, err := os.Create(fmt.Sprintf("%s/rn_hv_%s.log", mcConfig.LogPath, mcConfig.NodeID))
+	// if err != nil {
+	// 	log.Fatalf("error opening file: %v", err)
+	// }
+	// defer rnHvLogFile.Close()
+	// rnHvLogger := log.New(rnHvLogFile, "", log.LstdFlags|log.Lshortfile)
+	rnHvLogger := log.New(os.Stdout, "REGION HV", log.LstdFlags|log.Lshortfile)
 
-	rrnHvLogFile, err := os.Create(fmt.Sprintf("%s/rrn_hv_%s.log", mcConfig.LogPath, mcConfig.NodeID))
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer rrnHvLogFile.Close()
-	rrnHvLogger := log.New(rrnHvLogFile, "", log.LstdFlags|log.Lshortfile)
+	// rrnHvLogFile, err := os.Create(fmt.Sprintf("%s/rrn_hv_%s.log", mcConfig.LogPath, mcConfig.NodeID))
+	// if err != nil {
+	// 	log.Fatalf("error opening file: %v", err)
+	// }
+	// defer rrnHvLogFile.Close()
+	// rrnHvLogger := log.New(rrnHvLogFile, "", log.LstdFlags|log.Lshortfile)
+	rrnHvLogger := log.New(os.Stdout, "RRN HV", log.LstdFlags|log.Lshortfile)
 
-	rnPtLogFile, err := os.Create(fmt.Sprintf("%s/rn_pt_%s.log", mcConfig.LogPath, mcConfig.NodeID))
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer rnPtLogFile.Close()
-	rnPtLogger := log.New(rnPtLogFile, "", log.LstdFlags|log.Lshortfile)
+	// rnPtLogFile, err := os.Create(fmt.Sprintf("%s/rn_pt_%s.log", mcConfig.LogPath, mcConfig.NodeID))
+	// if err != nil {
+	// 	log.Fatalf("error opening file: %v", err)
+	// }
+	// defer rnPtLogFile.Close()
+	// rnPtLogger := log.New(rnPtLogFile, "", log.LstdFlags|log.Lshortfile)
+	rnPtLogger := log.New(os.Stdout, "REGION PT", log.LstdFlags|log.Lshortfile)
 
-	rrnPtLogFile, err := os.Create(fmt.Sprintf("%s/rrn_pt_%s.log", mcConfig.LogPath, mcConfig.NodeID))
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer rrnPtLogFile.Close()
-	rrnPtLogger := log.New(rrnPtLogFile, "", log.LstdFlags|log.Lshortfile)
+	// rrnPtLogFile, err := os.Create(fmt.Sprintf("%s/rrn_pt_%s.log", mcConfig.LogPath, mcConfig.NodeID))
+	// if err != nil {
+	// 	log.Fatalf("error opening file: %v", err)
+	// }
+	// defer rrnPtLogFile.Close()
+	// rrnPtLogger := log.New(rrnPtLogFile, "", log.LstdFlags|log.Lshortfile)
+	rrnPtLogger := log.New(os.Stdout, "RRN PT", log.LstdFlags|log.Lshortfile)
 
-	mcLogFile, err := os.Create(fmt.Sprintf("%s/mc_%s.log", mcConfig.LogPath, mcConfig.NodeID))
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	defer mcLogFile.Close()
-	mcLogger := log.New(mcLogFile, "", log.LstdFlags|log.Lshortfile)
+	// mcLogFile, err := os.Create(fmt.Sprintf("%s/mc_%s.log", mcConfig.LogPath, mcConfig.NodeID))
+	// if err != nil {
+	// 	log.Fatalf("error opening file: %v", err)
+	// }
+	// defer mcLogFile.Close()
+	// mcLogger := log.New(mcLogFile, "", log.LstdFlags|log.Lshortfile)
+	mcLogger := log.New(os.Stdout, "MONOCEROS", log.LstdFlags|log.Lshortfile)
 
 	// INIT
 
