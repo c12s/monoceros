@@ -166,6 +166,7 @@ func (m *Monoceros) Start() {
 		m.init()
 	}
 	clearActive := func(network *TreeOverlay) {
+		// todo: ??
 		for range time.NewTicker(2 * time.Second).C {
 			m.logger.Println("try lock")
 			m.lock.Lock()
@@ -261,7 +262,7 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 
 // locked
 func (m *Monoceros) tryPromote(network *TreeOverlay) {
-	// time.Sleep(time.Duration(3*m.config.Aggregation.TAggSec) * time.Second)
+	// todo: ??
 	for range time.NewTicker(time.Duration(m.config.Aggregation.TAggSec) * time.Second).C {
 		m.logger.Println("try lock")
 		m.lock.Lock()
@@ -274,15 +275,10 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 		// problem: ako sporo konvergira kada se veliki broj pokrnee odjednom
 		// onda se moze desiti da, nakon sto unisti svoje stablo, opet promovise sebe
 		// iako ne bi trebao, broj poruka ostaje zauvek preveliki
-		expectedAggregationTime := network.lastAggregationTime + 30*m.config.Aggregation.TAggSec
+		// todo: ??
+		expectedAggregationTime := network.lastAggregationTime + m.config.Aggregation.TAggSec
 		now := time.Now().Unix()
 		m.logger.Println("peers num", peersNum, "now time", now, "expected aggregation time", expectedAggregationTime)
-		// da se ne bi menjao root svaki put kad se prikljuci novi cvor
-		// if (peersNum == 0 || (network.rank > 0 && expectedAggregationTime < now)) && network.local == nil {
-		// if network.joined && (peersNum == 0 || expectedAggregationTime < now) && network.local == nil {
-
-		// kreni ako ti poruka nije stigla i (u slucaju rn) ne postoji drugi root u tvom regionu
-		// if expectedAggregationTime < now && (!slices.Contains(slices.Collect(maps.Values(m.regionalRootRegions)), m.config.Region) || network.ID == m.RRN.ID) {
 		if expectedAggregationTime < now {
 			m.promote(network)
 		}
@@ -578,6 +574,7 @@ func (m *Monoceros) onAbortResp(network *TreeOverlay, tree plumtree.TreeMetadata
 // locked by caller
 func (m *Monoceros) onAggregationResult(network *TreeOverlay, result AggregationResult) {
 	m.logger.Println("received aggregation result", result)
+	// todo: ??
 	if m.latestMetricsTs[result.NetworkID] > result.Timestamp {
 		m.logger.Println("local ts higher than received ts", m.latestMetricsTs, result.Timestamp)
 		return
@@ -586,6 +583,7 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, result Aggregation
 	m.latestMetricsTs[result.NetworkID] = result.Timestamp
 	m.latestIM[result.NetworkID] = result.IMs
 	if result.NetworkID == network.ID {
+		// todo: ??
 		network.rank = GetNodeRank(m.config.NodeID, result.RankList)
 		m.logger.Println("rank", network.rank)
 		if network.ID == m.RRN.ID {
@@ -611,7 +609,10 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, result Aggregation
 
 // locked by caller
 func (m *Monoceros) processAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, req AggregationReq) {
-	network.lastAggregationTime = int64(math.Max(float64(req.Timestamp), float64(network.lastAggregationTime)))
+	// todo: ??
+	// ocekuje zahtev svakih Tagg u odnosu na prethodni put kad mu je zahtev stigao
+	network.lastAggregationTime = int64(math.Max(float64(time.Now().Unix()), float64(network.lastAggregationTime)))
+	// network.lastAggregationTime = int64(math.Max(float64(req.Timestamp), float64(network.lastAggregationTime)))
 	localForAggregation := network.getLocalMetrics()
 	localScores := map[string]float64{m.config.NodeID: 1}
 	receivers, err := network.plumtree.GetChildren(tree.Id)
@@ -740,6 +741,7 @@ func (m *Monoceros) joinRRN(tree plumtree.TreeMetadata) {
 		return
 	}
 	m.lock.Unlock()
+	// todo: ??
 	time.Sleep(time.Duration(3*m.config.Aggregation.TAggSec) * time.Second)
 	m.logger.Println("try lock")
 	m.lock.Lock()

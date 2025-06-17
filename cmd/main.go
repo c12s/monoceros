@@ -148,6 +148,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/metrics", mc.MetricsHandler)
+	mux.HandleFunc("/state", mc.StateHandler)
 	server := http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%s", strings.Split(mcConfig.HTTPServerAddr, ":")[1]),
 		Handler: mux,
