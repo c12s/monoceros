@@ -276,7 +276,7 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 		// onda se moze desiti da, nakon sto unisti svoje stablo, opet promovise sebe
 		// iako ne bi trebao, broj poruka ostaje zauvek preveliki
 		// todo: ??
-		expectedAggregationTime := network.lastAggregationTime + m.config.Aggregation.TAggSec
+		expectedAggregationTime := network.lastAggregationTime + 2*m.config.Aggregation.TAggSec
 		now := time.Now().Unix()
 		m.logger.Println("peers num", peersNum, "now time", now, "expected aggregation time", expectedAggregationTime)
 		if expectedAggregationTime < now {
@@ -337,6 +337,35 @@ func (m *Monoceros) initAggregation(network *TreeOverlay) {
 		err = network.plumtree.Gossip(networkId, AGGREGATION_REQ_MSG_TYPE, msgBytes)
 		if err != nil {
 			m.logger.Println("error broadcasting aggregation request", err)
+		}
+		// ako je rrn, ukloni druge iz regiona
+		if network.ID == m.RRN.ID {
+			m.lock.Lock()
+			for id, region := range m.regionalRootRegions {
+				if region != m.config.Region || id == m.config.NodeID {
+					continue
+				}
+				gossip := RRUpdate{
+					Joined: false,
+					NodeInfo: data.Node{
+						ID:            id,
+						ListenAddress: m.regionalRootAddresses[id],
+					},
+					Region: region,
+				}
+				gossipBytes, err := json.Marshal(gossip)
+				if err != nil {
+					m.logger.Println(err)
+					return
+				}
+				gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
+				m.logger.Println("sending rrn update", gossipBytes)
+				m.lock.Unlock()
+				m.GN.Broadcast(gossipBytes)
+				m.logger.Println("try lock")
+				m.lock.Lock()
+			}
+			m.lock.Unlock()
 		}
 	}
 }
@@ -422,6 +451,14 @@ func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
 		if msg.Joined {
 			m.regionalRootAddresses[msg.NodeInfo.ID] = msg.NodeInfo.ListenAddress
 			m.regionalRootRegions[msg.NodeInfo.ID] = msg.Region
+			// join sa novim ako je i ovaj node root
+			if m.RRN.joined && m.RRN.local != nil {
+				m.logger.Println("joining new regional root", msg.NodeInfo.ID)
+				err := m.RRN.plumtree.Join(msg.NodeInfo.ID, msg.NodeInfo.ListenAddress)
+				if err != nil {
+					m.logger.Println(err)
+				}
+			}
 		} else {
 			delete(m.regionalRootAddresses, msg.NodeInfo.ID)
 			delete(m.regionalRootRegions, msg.NodeInfo.ID)

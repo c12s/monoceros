@@ -136,7 +136,9 @@ func main() {
 		ListenAddress: mcConfig.RRNListenAddr,
 	}
 	rrnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(rrnSelf.ListenAddress, ":")[1])))
-	rrnHv, err := hyparview.NewHyParView(hvConfig, rrnSelf, rrnConnManager, rrnHvLogger)
+	rrnHvConfig := hvConfig
+	rrnHvConfig.Fanout = 1000
+	rrnHv, err := hyparview.NewHyParView(rrnHvConfig, rrnSelf, rrnConnManager, rrnHvLogger)
 	if err != nil {
 		log.Fatal(err)
 	}
