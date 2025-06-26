@@ -37,6 +37,7 @@ type TreeOverlay struct {
 	rank                   int64
 	aggregate              chan struct{}
 	local                  *plumtree.TreeMetadata
+	localAggCount          int64
 	activeRequests         []*ActiveAggregationReq
 	joined                 bool
 	getLocalMetrics        func() []IntermediateMetric
@@ -135,7 +136,7 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		aggregate:              make(chan struct{}),
 		activeRequests:         make([]*ActiveAggregationReq, 0),
 		getLocalMetrics:        m.getLatestForNode,
-		AdditionalMetricLabels: map[string]string{"regionID": config.Region},
+		AdditionalMetricLabels: map[string]string{"level": "region", "regionID": config.Region},
 	}
 	m.RRN = &TreeOverlay{
 		ID:                     REGIONAL_ROOTS_NETWORK,
@@ -143,7 +144,7 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		aggregate:              make(chan struct{}),
 		activeRequests:         make([]*ActiveAggregationReq, 0),
 		getLocalMetrics:        m.getLatestForRegion,
-		AdditionalMetricLabels: map[string]string{},
+		AdditionalMetricLabels: map[string]string{"level": "global"},
 	}
 	return m
 }
@@ -177,6 +178,7 @@ func (m *Monoceros) Start() {
 				}
 				m.logger.Println("should clean up active request", *aar)
 				children, _ := network.plumtree.GetChildren(aar.Tree.Id)
+				// todo: ??
 				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || time.Now().Unix() > (aar.Timestamp+(2*m.config.Aggregation.TAggSec)) {
 					m.logger.Println("should")
 					toRemove = append(toRemove, aar)
@@ -256,6 +258,7 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 	}
 	if network.local != nil && tree.Id == network.local.Id {
 		network.local = nil
+		network.localAggCount = 0
 		m.logger.Println("local tree removed")
 	}
 }
@@ -301,6 +304,7 @@ func (m *Monoceros) promote(network *TreeOverlay) {
 	if err != nil {
 		m.logger.Println("err while promoting node", err)
 		network.local = nil
+		network.localAggCount = 0
 	}
 }
 
@@ -471,6 +475,7 @@ func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
 		msg := SyncStateResp{
 			RegionalRootAddresses: m.regionalRootAddresses,
 			RegionalRootRegions:   m.regionalRootRegions,
+			Rules:                 m.rules,
 		}
 		msgBytes, err := json.Marshal(msg)
 		if err != nil {
@@ -502,11 +507,33 @@ func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
 		}
 		m.regionalRootAddresses = msg.RegionalRootAddresses
 		m.regionalRootRegions = msg.RegionalRootRegions
+		m.rules = msg.Rules
 		m.synced = true
 		m.logger.Println(m.regionalRootAddresses)
 		m.logger.Println(m.regionalRootRegions)
 		m.init()
 		return false
+	} else if msgType == RULE_ADDED_MSG_TYPE {
+		m.logger.Println("received rule added")
+		msg := RuleAdded{}
+		err := json.Unmarshal(msgBytes[1:], &msg)
+		if err != nil {
+			m.logger.Println("error while unmarshalling", msg, err)
+			return false
+		}
+		m.rules = append(m.rules, msg.Rule)
+		m.logger.Println(m.rules)
+		return true
+	} else if msgType == RULE_REMOVED_MSG_TYPE {
+		m.logger.Println("received rule removed")
+		msg := RuleRemoved{}
+		err := json.Unmarshal(msgBytes[1:], &msg)
+		if err != nil {
+			m.logger.Println("error while unmarshalling", msg, err)
+			return false
+		}
+		m.rules = slices.DeleteFunc(m.rules, func(r AggregationRule) bool { return r.ID == msg.RuleID })
+		return true
 	} else {
 		m.logger.Println("unknows msg type", msgType)
 		return false
@@ -580,7 +607,10 @@ func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMe
 		m.logger.Println("could not find sender in active request", req.WaitingFor, "sender", sender)
 		return
 	}
+	m.logger.Println("before combined", req.Aggregate)
+	m.logger.Println(resp.Aggregate)
 	req.Aggregate = combineAggregates(req.Aggregate, resp.Aggregate, m.rules)
+	m.logger.Println("combined", req.Aggregate)
 	for id, score := range resp.Scores {
 		req.Scores[id] = score
 	}
@@ -718,6 +748,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 				m.logger.Println("error while destorying local tree", err)
 			}
 		} else {
+			network.localAggCount += 1
 			for _, im := range value {
 				maps.Copy(im.Metadata.Labels, network.AdditionalMetricLabels)
 			}
@@ -779,13 +810,27 @@ func (m *Monoceros) joinRRN(tree plumtree.TreeMetadata) {
 	}
 	m.lock.Unlock()
 	// todo: ??
-	time.Sleep(time.Duration(3*m.config.Aggregation.TAggSec) * time.Second)
+	// promovisi samo ako je i dalje != nil i proslo bar n agregacija
+	for range time.NewTicker(time.Second).C {
+		m.lock.Lock()
+		if m.RN.local == nil {
+			// m.lock.Unlock()
+			m.logger.Println("local rn tree destroyed in the meantime, should not join rrn")
+			return
+		}
+		if m.RN.localAggCount > 0 {
+			m.lock.Unlock()
+			break
+		}
+		m.lock.Unlock()
+	}
+	// time.Sleep(time.Duration(3*m.config.Aggregation.TAggSec) * time.Second)
 	m.logger.Println("try lock")
 	m.lock.Lock()
-	if m.RN.local == nil {
-		m.logger.Println("local rn tree destroyed in the meantime, should not join rrn")
-		return
-	}
+	// if m.RN.local == nil {
+	// 	m.logger.Println("local rn tree destroyed in the meantime, should not join rrn")
+	// 	return
+	// }
 	m.logger.Println("still join rrn??")
 	contactedPeer := false
 	for id, address := range m.regionalRootAddresses {

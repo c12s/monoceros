@@ -149,8 +149,10 @@ func main() {
 	mc.Start()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/metrics", mc.MetricsHandler)
-	mux.HandleFunc("/state", mc.StateHandler)
+	mux.HandleFunc("GET /metrics", mc.MetricsHandler)
+	mux.HandleFunc("GET /state", mc.StateHandler)
+	mux.HandleFunc("POST /rules", mc.AddRulesHandler)
+	mux.HandleFunc("DELETE /rules/{id}", mc.RemoveRulesHandler)
 	server := http.Server{
 		Addr:    fmt.Sprintf("0.0.0.0:%s", strings.Split(mcConfig.HTTPServerAddr, ":")[1]),
 		Handler: mux,

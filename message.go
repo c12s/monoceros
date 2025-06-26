@@ -40,9 +40,11 @@ func Serialize(v any) ([]byte, error) {
 }
 
 const (
-	RRUPDATE_MSG_TYPE  byte = 1
-	SYNC_REQ_MSG_TYPE  byte = 2
-	SYNC_RESP_MSG_TYPE byte = 3
+	RRUPDATE_MSG_TYPE     byte = 1
+	SYNC_REQ_MSG_TYPE     byte = 2
+	SYNC_RESP_MSG_TYPE    byte = 3
+	RULE_ADDED_MSG_TYPE   byte = 4
+	RULE_REMOVED_MSG_TYPE byte = 5
 )
 
 type RRUpdate struct {
@@ -54,4 +56,13 @@ type RRUpdate struct {
 type SyncStateResp struct {
 	RegionalRootAddresses map[string]string
 	RegionalRootRegions   map[string]string
+	Rules                 []AggregationRule
+}
+
+type RuleAdded struct {
+	Rule AggregationRule
+}
+
+type RuleRemoved struct {
+	RuleID string
 }

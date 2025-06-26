@@ -6,6 +6,7 @@ import (
 	"log"
 	"maps"
 	"math"
+	"net/http"
 
 	dto "github.com/prometheus/client_model/go"
 )
@@ -214,6 +215,7 @@ func (im *IntermediateMetric) UnmarshalJSON(data []byte) error {
 }
 
 type AggregationRule struct {
+	ID            string
 	InputSelector MetricMetadata
 	Func          AggregationFunc
 	Output        MetricMetadata
@@ -223,14 +225,19 @@ func (m *Monoceros) getLatestForNode() []IntermediateMetric {
 	local := make([]IntermediateMetric, 0)
 	metrics := m.fetchNodeMetrics()
 	metrics = filterByTypes(metrics, []*dto.MetricType{dto.MetricType_GAUGE.Enum()})
+	m.logger.Println("get node metrics")
 	for _, rule := range m.rules {
+		m.logger.Println(rule)
 		input := selectRawMetricsValues(rule.InputSelector, metrics)
+		m.logger.Println(input)
 		inputIM := rawMetricsToIM(input, rule)
 		im := aggregate(inputIM)
+		m.logger.Println(im)
 		if im == nil {
 			continue
 		}
 		local = append(local, *im)
+		m.logger.Println("local", local)
 	}
 	return local
 }
@@ -279,4 +286,51 @@ func aggregate(input []IntermediateMetric) *IntermediateMetric {
 		}
 	}
 	return &ir
+}
+
+func (m *Monoceros) AddRulesHandler(w http.ResponseWriter, r *http.Request) {
+	m.logger.Println("POST /rules request")
+	rule := AggregationRule{}
+	err := json.NewDecoder(r.Body).Decode(&rule)
+	if err != nil {
+		m.logger.Println(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	// tmp fix
+	if region, ok := rule.InputSelector.Labels["regionID"]; ok {
+		rule.Output.Labels["regionID"] = region
+	}
+	if level, ok := rule.InputSelector.Labels["level"]; ok {
+		if level == "region" {
+			rule.Output.Labels["level"] = "global"
+		}
+	}
+	gossip := RuleAdded{Rule: rule}
+	gossipBytes, err := json.Marshal(gossip)
+	if err != nil {
+		m.logger.Println(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	gossipBytes = append([]byte{RULE_ADDED_MSG_TYPE}, gossipBytes...)
+	m.logger.Println("sending rule added", gossipBytes)
+	m.GN.Broadcast(gossipBytes)
+	w.WriteHeader(http.StatusOK)
+}
+
+func (m *Monoceros) RemoveRulesHandler(w http.ResponseWriter, r *http.Request) {
+	m.logger.Println("DELETE /rules request")
+	id := r.PathValue("id")
+	gossip := RuleRemoved{RuleID: id}
+	gossipBytes, err := json.Marshal(gossip)
+	if err != nil {
+		m.logger.Println(err)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	gossipBytes = append([]byte{RULE_REMOVED_MSG_TYPE}, gossipBytes...)
+	m.logger.Println("sending rule removed", gossipBytes)
+	m.GN.Broadcast(gossipBytes)
+	w.WriteHeader(http.StatusOK)
 }

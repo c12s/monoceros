@@ -80,6 +80,8 @@ func (m *Monoceros) fetchNodeMetrics() []*dto.MetricFamily {
 			m.logger.Printf("Error reading %s: %v", target.Address, err)
 			continue
 		}
+		m.logger.Println("metrics received")
+		m.logger.Println(string(body))
 		// to structs
 		mfs, err := parseOpenMetrics(string(body))
 		if err != nil {
@@ -90,9 +92,15 @@ func (m *Monoceros) fetchNodeMetrics() []*dto.MetricFamily {
 		// add to result
 		sourceLabelName := "source"
 		sourceLabelValue := target.Name
+		levelLabelName := "level"
+		levelLabelValue := "node"
+		regionLabelName := "regionID"
+		regionLabelValue := m.config.Region
 		for _, mf := range mfs {
 			for _, m := range mf.Metric {
 				m.Label = append(m.Label, &dto.LabelPair{Name: &sourceLabelName, Value: &sourceLabelValue})
+				m.Label = append(m.Label, &dto.LabelPair{Name: &levelLabelName, Value: &levelLabelValue})
+				m.Label = append(m.Label, &dto.LabelPair{Name: &regionLabelName, Value: &regionLabelValue})
 			}
 			result = append(result, mf)
 		}
