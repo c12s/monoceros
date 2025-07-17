@@ -1,11 +1,14 @@
 package monoceros
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
 	"math"
+	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -179,7 +182,7 @@ func (m *Monoceros) Start() {
 				m.logger.Println("should clean up active request", *aar)
 				children, _ := network.plumtree.GetChildren(aar.Tree.Id)
 				// todo: ??
-				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || time.Now().Unix() > (aar.Timestamp+(2*m.config.Aggregation.TAggSec)) {
+				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || time.Now().Unix() > (aar.Timestamp+(1*m.config.Aggregation.TAggSec)) {
 					m.logger.Println("should")
 					toRemove = append(toRemove, aar)
 					m.completeAggregationReq(network, aar.Tree, aar.Timestamp, aar.Aggregate, aar.Scores, false)
@@ -279,10 +282,12 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 		// onda se moze desiti da, nakon sto unisti svoje stablo, opet promovise sebe
 		// iako ne bi trebao, broj poruka ostaje zauvek preveliki
 		// todo: ??
-		expectedAggregationTime := network.lastAggregationTime + 2*m.config.Aggregation.TAggSec
+		// vreme koje je potrebno da poruka stigne od korena do trenutnog cvora
+		n := 0.2
+		expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec) + n
 		now := time.Now().Unix()
 		m.logger.Println("peers num", peersNum, "now time", now, "expected aggregation time", expectedAggregationTime)
-		if expectedAggregationTime < now {
+		if expectedAggregationTime < float64(now) {
 			m.promote(network)
 		}
 		m.lock.Unlock()
@@ -641,6 +646,7 @@ func (m *Monoceros) onAbortResp(network *TreeOverlay, tree plumtree.TreeMetadata
 // locked by caller
 func (m *Monoceros) onAggregationResult(network *TreeOverlay, result AggregationResult) {
 	m.logger.Println("received aggregation result", result)
+	received := time.Now().Unix()
 	// todo: ??
 	if m.latestMetricsTs[result.NetworkID] > result.Timestamp {
 		m.logger.Println("local ts higher than received ts", m.latestMetricsTs, result.Timestamp)
@@ -649,6 +655,7 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, result Aggregation
 	m.latestMetrics[result.NetworkID] = result.Aggregate
 	m.latestMetricsTs[result.NetworkID] = result.Timestamp
 	m.latestIM[result.NetworkID] = result.IMs
+	m.exportResult(result.IMs, result.Timestamp, received)
 	if result.NetworkID == network.ID {
 		// todo: ??
 		network.rank = GetNodeRank(m.config.NodeID, result.RankList)
@@ -961,4 +968,30 @@ func GetNodeRank(nodeID string, scores map[string]float64) int64 {
 		}
 	}
 	return rank
+}
+
+func (m *Monoceros) exportResult(ims []IntermediateMetric, reqTimestamp, rcvTimestamp int64) {
+	for _, im := range ims {
+		name := im.Metadata.Name + "{ "
+		for _, k := range slices.Sorted(maps.Keys(im.Metadata.Labels)) {
+			name += k + "=" + im.Metadata.Labels[k] + " "
+		}
+		name += "}"
+		filename := fmt.Sprintf("/var/log/monoceros/results/%s.csv", name)
+		file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+		if err != nil {
+			m.logger.Printf("failed to open/create file: %v", err)
+			continue
+		}
+		defer file.Close()
+		writer := csv.NewWriter(file)
+		defer writer.Flush()
+		reqTsStr := strconv.Itoa(int(reqTimestamp))
+		rcvTsStr := strconv.Itoa(int(rcvTimestamp))
+		valStr := strconv.FormatFloat(im.Result.ComputeFinal(), 'f', -1, 64)
+		err = writer.Write([]string{reqTsStr, rcvTsStr, valStr})
+		if err != nil {
+			m.logger.Println(err)
+		}
+	}
 }
