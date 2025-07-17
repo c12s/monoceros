@@ -284,7 +284,7 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 		// todo: ??
 		// vreme koje je potrebno da poruka stigne od korena do trenutnog cvora
 		n := 0.2
-		expectedAggregationTime := float64(network.lastAggregationTime) + float64(network.rank)*float64(m.config.Aggregation.TAggSec) + n
+		expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec) + n
 		now := time.Now().Unix()
 		m.logger.Println("peers num", peersNum, "now time", now, "expected aggregation time", expectedAggregationTime)
 		if expectedAggregationTime < float64(now) {
