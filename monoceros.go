@@ -182,7 +182,7 @@ func (m *Monoceros) Start() {
 				m.logger.Println("should clean up active request", *aar)
 				children, _ := network.plumtree.GetChildren(aar.Tree.Id)
 				// todo: ??
-				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || time.Now().Unix() > (aar.Timestamp+(1*m.config.Aggregation.TAggSec)) {
+				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || time.Now().Unix() > (aar.Timestamp+(2*m.config.Aggregation.TAggSec)) {
 					m.logger.Println("should")
 					toRemove = append(toRemove, aar)
 					m.completeAggregationReq(network, aar.Tree, aar.Timestamp, aar.Aggregate, aar.Scores, false)
