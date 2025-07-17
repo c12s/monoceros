@@ -171,7 +171,7 @@ func (m *Monoceros) Start() {
 	}
 	clearActive := func(network *TreeOverlay) {
 		// todo: ??
-		for range time.NewTicker(2 * time.Second).C {
+		for range time.NewTicker(time.Second).C {
 			m.logger.Println("try lock")
 			m.lock.Lock()
 			toRemove := make([]*ActiveAggregationReq, 0)
@@ -269,7 +269,7 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 // locked
 func (m *Monoceros) tryPromote(network *TreeOverlay) {
 	// todo: ??
-	for range time.NewTicker(1 * time.Second).C {
+	for range time.NewTicker(100 * time.Millisecond).C {
 		m.logger.Println("try lock")
 		m.lock.Lock()
 		if !network.joined || network.local != nil {
@@ -818,7 +818,7 @@ func (m *Monoceros) joinRRN(tree plumtree.TreeMetadata) {
 	m.lock.Unlock()
 	// todo: ??
 	// promovisi samo ako je i dalje != nil i proslo bar n agregacija
-	for range time.NewTicker(time.Second).C {
+	for range time.NewTicker(100*time.Millisecond).C {
 		m.lock.Lock()
 		if m.RN.local == nil {
 			// m.lock.Unlock()
