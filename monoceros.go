@@ -169,37 +169,14 @@ func (m *Monoceros) Start() {
 		m.synced = true
 		m.init()
 	}
-	clearActive := func(network *TreeOverlay) {
-		// todo: ??
+
+	// go clearActive(m.RN)
+	// go clearActive(m.RRN)
+	go func() {
 		for range time.NewTicker(time.Second).C {
-			m.logger.Println("try lock")
-			m.lock.Lock()
-			toRemove := make([]*ActiveAggregationReq, 0)
-			for _, aar := range network.activeRequests {
-				if aar == nil {
-					continue
-				}
-				m.logger.Println("should clean up active request", *aar)
-				children, _ := network.plumtree.GetChildren(aar.Tree.Id)
-				// todo: ??
-				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || time.Now().Unix() > (aar.Timestamp+(2*m.config.Aggregation.TAggSec)) {
-					m.logger.Println("should")
-					toRemove = append(toRemove, aar)
-					m.completeAggregationReq(network, aar.Tree, aar.Timestamp, aar.Aggregate, aar.Scores, false)
-				} else {
-					m.logger.Println("should not")
-				}
-			}
-			for _, remove := range toRemove {
-				network.activeRequests = slices.DeleteFunc(network.activeRequests, func(r *ActiveAggregationReq) bool {
-					return r.Tree.Id == remove.Tree.Id && r.Timestamp == remove.Timestamp
-				})
-			}
-			m.lock.Unlock()
+			m.exportMsgCount()
 		}
-	}
-	go clearActive(m.RN)
-	go clearActive(m.RRN)
+	}()
 }
 
 func (m *Monoceros) init() {
@@ -380,7 +357,7 @@ func (m *Monoceros) initAggregation(network *TreeOverlay) {
 }
 
 // locked
-func (m *Monoceros) onGossipMsg(tree plumtree.TreeMetadata, msgType string, msg []byte, sender data.Node) bool {
+func (m *Monoceros) onGossipMsg(tree plumtree.TreeMetadata, msgType string, msg []byte, sender data.Node, round int) bool {
 	m.logger.Println("try lock")
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -397,7 +374,7 @@ func (m *Monoceros) onGossipMsg(tree plumtree.TreeMetadata, msgType string, msg 
 			m.logger.Println("error while unmarshalling aggregation req", msg)
 			return false
 		}
-		return m.onAggregationReq(network, tree, req)
+		return m.onAggregationReq(network, tree, req, round)
 	}
 	if msgType == AGGREGATION_RESULT_MSG_TYPE {
 		result := AggregationResult{}
@@ -546,7 +523,7 @@ func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
 }
 
 // locked by caller
-func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, req AggregationReq) bool {
+func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, req AggregationReq, round int) bool {
 	// problem: vodi racuna o ovoj izmeni, mozda negde moze doci do blokiranja protokola
 	if (tree.Score < m.config.NodeID || slices.ContainsFunc(network.activeRequests, func(r *ActiveAggregationReq) bool {
 		return r != nil && r.Tree.Score > tree.Score
@@ -557,6 +534,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 		respBytes, err := Serialize(resp)
 		if err != nil {
 			m.logger.Println("error marshalling abort resp", err)
+			// return true
 			return false
 		} else {
 			m.lock.Unlock()
@@ -565,6 +543,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 			m.lock.Lock()
 			if err != nil {
 				m.logger.Println("error sending abort resp", err)
+				// return true
 				return false
 			} else {
 				m.logger.Println("local tree", network.local, "has higher score than tree", tree, "destroying ...")
@@ -575,6 +554,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 				if err != nil {
 					m.logger.Println("error while destorying tree", err)
 				}
+				// return true
 				return false
 			}
 		}
@@ -589,7 +569,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 				m.logger.Println("error while destorying local tree", err)
 			}
 		}
-		m.processAggregationReq(network, tree, req)
+		m.processAggregationReq(network, tree, req, round)
 		return true
 	}
 }
@@ -682,7 +662,7 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, result Aggregation
 }
 
 // locked by caller
-func (m *Monoceros) processAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, req AggregationReq) {
+func (m *Monoceros) processAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, req AggregationReq, round int) {
 	// todo: ??
 	// ocekuje zahtev svakih Tagg u odnosu na prethodni put kad mu je zahtev stigao
 	network.lastAggregationTime = int64(math.Max(float64(time.Now().Unix()), float64(network.lastAggregationTime)))
@@ -706,6 +686,7 @@ func (m *Monoceros) processAggregationReq(network *TreeOverlay, tree plumtree.Tr
 			Scores:     localScores,
 		}
 		network.activeRequests = append(network.activeRequests, aar)
+		go m.clearActive(network, aar, round)
 	}
 }
 
@@ -818,7 +799,7 @@ func (m *Monoceros) joinRRN(tree plumtree.TreeMetadata) {
 	m.lock.Unlock()
 	// todo: ??
 	// promovisi samo ako je i dalje != nil i proslo bar n agregacija
-	for range time.NewTicker(100*time.Millisecond).C {
+	for range time.NewTicker(100 * time.Millisecond).C {
 		m.lock.Lock()
 		if m.RN.local == nil {
 			// m.lock.Unlock()
@@ -925,6 +906,22 @@ func (m *Monoceros) leaveRRN(tree plumtree.TreeMetadata) {
 	m.lock.Lock()
 }
 
+func (m *Monoceros) clearActive(network *TreeOverlay, aar *ActiveAggregationReq, round int) {
+	time.Sleep(time.Duration(m.config.Aggregation.TAggSec) * time.Second)
+	// time.Sleep(time.Duration(m.config.Aggregation.TAggSec/int64(math.Pow(2, float64(round)))) * time.Second)
+	if !slices.ContainsFunc(network.activeRequests, func(ar *ActiveAggregationReq) bool {
+		return ar != nil && ar.Tree.Id == aar.Tree.Id && ar.Timestamp == aar.Timestamp
+	}) {
+		return
+	}
+	m.lock.Lock()
+	defer m.lock.Unlock()
+	m.completeAggregationReq(network, aar.Tree, aar.Timestamp, aar.Aggregate, aar.Scores, false)
+	network.activeRequests = slices.DeleteFunc(network.activeRequests, func(r *ActiveAggregationReq) bool {
+		return r.Tree.Id == aar.Tree.Id && r.Timestamp == aar.Timestamp
+	})
+}
+
 func (m *Monoceros) resolveNetwork(treeId string) *TreeOverlay {
 	parts := strings.Split(treeId, "_")
 	if len(parts) < 2 {
@@ -993,5 +990,30 @@ func (m *Monoceros) exportResult(ims []IntermediateMetric, reqTimestamp, rcvTime
 		if err != nil {
 			m.logger.Println(err)
 		}
+	}
+}
+
+func (m *Monoceros) exportMsgCount() {
+	filename := "/var/log/monoceros/results/msg_count.csv"
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+	if err != nil {
+		m.logger.Printf("failed to open/create file: %v", err)
+		return
+	}
+	defer file.Close()
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+	tsStr := strconv.Itoa(int(time.Now().Unix()))
+	transport.MessagesSentLock.Lock()
+	sent := transport.MessagesSent
+	transport.MessagesSentLock.Unlock()
+	transport.MessagesRcvdLock.Lock()
+	rcvd := transport.MessagesRcvd
+	transport.MessagesRcvdLock.Unlock()
+	sentStr := strconv.Itoa(sent)
+	rcvdStr := strconv.Itoa(rcvd)
+	err = writer.Write([]string{tsStr, sentStr, rcvdStr})
+	if err != nil {
+		m.logger.Println(err)
 	}
 }
