@@ -605,7 +605,7 @@ func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMe
 		m.logger.Println(len(network.activeRequests))
 		m.logger.Println(index)
 		network.activeRequests = slices.Delete(network.activeRequests, index, index+1)
-		m.completeAggregationReq(network, tree, req.Timestamp, req.Aggregate, req.Scores, false)
+		m.completeAggregationReq(network, tree, req.Timestamp, req.Aggregate, req.Scores)
 	}
 }
 
@@ -616,11 +616,34 @@ func (m *Monoceros) onAbortResp(network *TreeOverlay, tree plumtree.TreeMetadata
 	})
 	if index < 0 {
 		m.logger.Println("could not find active request for response", resp, "active requests", network.activeRequests)
-		return
+		// return
+	} else {
+		// req := network.activeRequests[index]
+		network.activeRequests = slices.Delete(network.activeRequests, index, index+1)
 	}
-	req := network.activeRequests[index]
-	network.activeRequests = slices.Delete(network.activeRequests, index, index+1)
-	m.completeAggregationReq(network, tree, req.Timestamp, req.Aggregate, req.Scores, true)
+	if network.plumtree.HasParent(tree.Id) {
+		respBytes, err := Serialize(resp)
+		if err != nil {
+			m.logger.Println("error marshalling resp", err)
+			return
+		}
+		m.lock.Unlock()
+		err = network.plumtree.SendToParent(tree.Id, ABORT_RESP_MSG_TYPE, respBytes)
+		m.logger.Println("try lock")
+		m.lock.Lock()
+		if err != nil {
+			m.logger.Println("error sending resp", err)
+		}
+	} else if network.local != nil && tree.Id == network.local.Id {
+		m.logger.Println("should destroy local tree")
+		m.lock.Unlock()
+		err := network.plumtree.DestroyTree(*network.local)
+		m.logger.Println("try lock")
+		m.lock.Lock()
+		if err != nil {
+			m.logger.Println("error while destorying local tree", err)
+		}
+	}
 }
 
 // locked by caller
@@ -676,7 +699,7 @@ func (m *Monoceros) processAggregationReq(network *TreeOverlay, tree plumtree.Tr
 	m.logger.Println("children to send req", receivers)
 	m.logger.Println("has parent", network.plumtree.HasParent(tree.Id))
 	if len(receivers) == 0 {
-		m.completeAggregationReq(network, tree, req.Timestamp, localForAggregation, localScores, false)
+		m.completeAggregationReq(network, tree, req.Timestamp, localForAggregation, localScores)
 	} else {
 		aar := &ActiveAggregationReq{
 			Tree:       tree,
@@ -691,7 +714,7 @@ func (m *Monoceros) processAggregationReq(network *TreeOverlay, tree plumtree.Tr
 }
 
 // locked by caller
-func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, timestamp int64, value []IntermediateMetric, scores map[string]float64, abort bool) {
+func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, timestamp int64, value []IntermediateMetric, scores map[string]float64) {
 	m.logger.Println("complete aggregation req", network, tree)
 	m.logger.Println(network.local)
 	m.logger.Println(tree.Id)
@@ -699,19 +722,19 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 		m.logger.Println("has parent")
 		var resp any = nil
 		var respType string = ""
-		if abort {
-			resp = AbortResp{
-				Timestamp: timestamp,
-			}
-			respType = ABORT_RESP_MSG_TYPE
-		} else {
-			resp = AggregationResp{
-				Timestamp: timestamp,
-				Aggregate: value,
-				Scores:    scores,
-			}
-			respType = AGGREGATION_RESP_MSG_TYPE
+		// if abort {
+		// 	resp = AbortResp{
+		// 		Timestamp: timestamp,
+		// 	}
+		// 	respType = ABORT_RESP_MSG_TYPE
+		// } else {
+		resp = AggregationResp{
+			Timestamp: timestamp,
+			Aggregate: value,
+			Scores:    scores,
 		}
+		respType = AGGREGATION_RESP_MSG_TYPE
+		// }
 		respBytes, err := Serialize(resp)
 		if err != nil {
 			m.logger.Println("error marshalling resp", err)
@@ -726,48 +749,48 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, tree plumtree.T
 		}
 	} else if network.local != nil && tree.Id == network.local.Id {
 		m.logger.Println("req done")
-		if abort {
-			m.logger.Println("should destroy local tree")
+		// if abort {
+		// 	m.logger.Println("should destroy local tree")
+		// 	m.lock.Unlock()
+		// 	err := network.plumtree.DestroyTree(*network.local)
+		// 	m.logger.Println("try lock")
+		// 	m.lock.Lock()
+		// 	if err != nil {
+		// 		m.logger.Println("error while destorying local tree", err)
+		// 	}
+		// } else {
+		network.localAggCount += 1
+		for _, im := range value {
+			maps.Copy(im.Metadata.Labels, network.AdditionalMetricLabels)
+		}
+		om, err := imToOpenMetrics(value)
+		if err != nil {
+			m.logger.Println(err)
+		}
+		result, err := Serialize(AggregationResult{
+			NetworkID: network.ID,
+			Timestamp: timestamp,
+			RankList:  scores,
+			Aggregate: om,
+			IMs:       value,
+		})
+		if err != nil {
+			m.logger.Println("error marshalling rank list", err)
+		} else {
+			m.logger.Println("sending aggregation result", result)
 			m.lock.Unlock()
-			err := network.plumtree.DestroyTree(*network.local)
+			err = network.plumtree.Gossip(tree.Id, AGGREGATION_RESULT_MSG_TYPE, result)
 			m.logger.Println("try lock")
 			m.lock.Lock()
 			if err != nil {
-				m.logger.Println("error while destorying local tree", err)
-			}
-		} else {
-			network.localAggCount += 1
-			for _, im := range value {
-				maps.Copy(im.Metadata.Labels, network.AdditionalMetricLabels)
-			}
-			om, err := imToOpenMetrics(value)
-			if err != nil {
-				m.logger.Println(err)
-			}
-			result, err := Serialize(AggregationResult{
-				NetworkID: network.ID,
-				Timestamp: timestamp,
-				RankList:  scores,
-				Aggregate: om,
-				IMs:       value,
-			})
-			if err != nil {
-				m.logger.Println("error marshalling rank list", err)
+				m.logger.Println("error sending aggregation result", err)
 			} else {
-				m.logger.Println("sending aggregation result", result)
-				m.lock.Unlock()
-				err = network.plumtree.Gossip(tree.Id, AGGREGATION_RESULT_MSG_TYPE, result)
-				m.logger.Println("try lock")
-				m.lock.Lock()
-				if err != nil {
-					m.logger.Println("error sending aggregation result", err)
-				} else {
-					m.logger.Println("sent aggregation result")
-				}
+				m.logger.Println("sent aggregation result")
 			}
-			// eval rules
-			// demote if necessary and possible
 		}
+		// eval rules
+		// demote if necessary and possible
+		// }
 	} else {
 		m.logger.Println("no conditions met")
 	}
@@ -916,7 +939,7 @@ func (m *Monoceros) clearActive(network *TreeOverlay, aar *ActiveAggregationReq,
 	}
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	m.completeAggregationReq(network, aar.Tree, aar.Timestamp, aar.Aggregate, aar.Scores, false)
+	m.completeAggregationReq(network, aar.Tree, aar.Timestamp, aar.Aggregate, aar.Scores)
 	network.activeRequests = slices.DeleteFunc(network.activeRequests, func(r *ActiveAggregationReq) bool {
 		return r.Tree.Id == aar.Tree.Id && r.Timestamp == aar.Timestamp
 	})
