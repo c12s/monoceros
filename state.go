@@ -59,10 +59,10 @@ func (m *Monoceros) GetState() any {
 }
 
 func (m *Monoceros) StateHandler(w http.ResponseWriter, _ *http.Request) {
-	m.logger.Println("/state request")
+	// m.logger.Println("/state request")
 	state, err := json.Marshal(m.GetState())
 	if err != nil {
-		m.logger.Println(err)
+		// m.logger.Println(err)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

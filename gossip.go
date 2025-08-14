@@ -3,7 +3,6 @@ package monoceros
 import (
 	"encoding/binary"
 	"hash/fnv"
-	"log"
 	"time"
 
 	"github.com/c12s/hyparview/data"
@@ -31,12 +30,12 @@ func NewGossipNode(membership plumtree.MembershipProtocol) *GossipNode {
 		}
 		send, msg := gn.peerUpHandler()
 		if !send {
-			log.Println("nothing to send to peer")
+			// log.Println("nothing to send to peer")
 			return
 		}
 		err := gn.Send(msg, peer.Conn)
 		if err != nil {
-			log.Println("error while sending msg to peer in global network", err)
+			// log.Println("error while sending msg to peer in global network", err)
 		}
 	})
 	return gn
@@ -50,19 +49,19 @@ func (gn *GossipNode) Broadcast(msg []byte) {
 	hashFn := fnv.New64()
 	_, err := hashFn.Write(msgBytes)
 	if err != nil {
-		log.Println("Error creating hash:", err)
+		// log.Println("Error creating hash:", err)
 		return
 	}
 	msgId := hashFn.Sum(nil)
 	if gn.seenMessages[string(msgId)] {
-		log.Println("msg already seen:", msg)
+		// log.Println("msg already seen:", msg)
 		return
 	}
 	gn.seenMessages[string(msgId)] = true
 	if gn.gossipHandler != nil {
 		proceed := gn.gossipHandler(msg, nil)
 		if !proceed {
-			log.Println("quit broadcasting signal ...")
+			// log.Println("quit broadcasting signal ...")
 			return
 		}
 	}
@@ -72,13 +71,13 @@ func (gn *GossipNode) Broadcast(msg []byte) {
 			Payload: msgBytes,
 		})
 		if err != nil {
-			log.Println("error while broadcasting msg in global network", err)
+			// log.Println("error while broadcasting msg in global network", err)
 		}
 	}
 }
 
 func (gn *GossipNode) Send(msg []byte, to transport.Conn) error {
-	log.Println("gn sending msg to peer")
+	// log.Println("gn sending msg to peer")
 	now := time.Now().Unix()
 	nowBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(nowBytes, uint64(now))
@@ -94,28 +93,28 @@ func (gn *GossipNode) onGossipReceived(msgBytes []byte, from transport.Conn) err
 
 	// err := json.Unmarshal(msgBytes1, &msgBytes)
 	// if err != nil {
-	// 	log.Println(err)
+	// 	// log.Println(err)
 	// 	return err
 	// }
-	log.Println("received gossip msg", msgBytes)
+	// log.Println("received gossip msg", msgBytes)
 	hashFn := fnv.New64()
 	_, err := hashFn.Write(msgBytes)
 	if err != nil {
-		log.Println("Error creating hash:", err)
+		// log.Println("Error creating hash:", err)
 		return nil
 	}
 	msgId := hashFn.Sum(nil)
 	if gn.seenMessages[string(msgId)] {
-		log.Println("msg already seen:", msgBytes)
+		// log.Println("msg already seen:", msgBytes)
 		return nil
 	}
 	gn.seenMessages[string(msgId)] = true
 	msg := msgBytes[8:]
-	log.Println("Received:", msg)
+	// log.Println("Received:", msg)
 	if gn.gossipHandler != nil {
 		proceed := gn.gossipHandler(msg, from)
 		if !proceed {
-			log.Println("quit broadcasting signal ...")
+			// log.Println("quit broadcasting signal ...")
 			return nil
 		}
 	}
@@ -128,7 +127,7 @@ func (gn *GossipNode) onGossipReceived(msgBytes []byte, from transport.Conn) err
 			Payload: msgBytes,
 		})
 		if err != nil {
-			log.Println("error while forwarding msg in global network", err)
+			// log.Println("error while forwarding msg in global network", err)
 		}
 	}
 	return nil

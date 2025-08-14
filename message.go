@@ -7,9 +7,9 @@ import (
 )
 
 const (
-	AGGREGATION_REQ_MSG_TYPE    = "A_REQ"
-	AGGREGATION_RESP_MSG_TYPE   = "A_RESP"
-	ABORT_RESP_MSG_TYPE         = "ABORT_RESP"
+	AGGREGATION_REQ_MSG_TYPE  = "A_REQ"
+	AGGREGATION_RESP_MSG_TYPE = "A_RESP"
+	// ABORT_RESP_MSG_TYPE         = "ABORT_RESP"
 	AGGREGATION_RESULT_MSG_TYPE = "A_RESULT"
 )
 
@@ -21,11 +21,12 @@ type AggregationResp struct {
 	Timestamp int64
 	Aggregate []IntermediateMetric
 	Scores    map[string]float64
+	Cancel    bool
 }
 
-type AbortResp struct {
-	Timestamp int64
-}
+// type AbortResp struct {
+// 	Timestamp int64
+// }
 
 type AggregationResult struct {
 	NetworkID string

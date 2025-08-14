@@ -71,21 +71,21 @@ func (m *Monoceros) fetchNodeMetrics() []*dto.MetricFamily {
 		// get from target
 		resp, err := http.Get(fmt.Sprintf("http://%s/metrics", target.Address))
 		if err != nil {
-			m.logger.Printf("Error scraping %s: %v", target.Address, err)
+			// m.logger.Printf("Error scraping %s: %v", target.Address, err)
 			continue
 		}
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {
-			m.logger.Printf("Error reading %s: %v", target.Address, err)
+			// m.logger.Printf("Error reading %s: %v", target.Address, err)
 			continue
 		}
-		m.logger.Println("metrics received")
-		m.logger.Println(string(body))
+		// m.logger.Println("metrics received")
+		// m.logger.Println(string(body))
 		// to structs
 		mfs, err := parseOpenMetrics(string(body))
 		if err != nil {
-			m.logger.Println(err)
+			// m.logger.Println(err)
 			continue
 		}
 		// add source label
@@ -107,7 +107,7 @@ func (m *Monoceros) fetchNodeMetrics() []*dto.MetricFamily {
 	}
 	om, err := toOpenMetrics(result)
 	if err != nil {
-		m.logger.Println(err)
+		// m.logger.Println(err)
 	} else {
 		m.latestMetrics["node"] = om
 		m.latestMetricsTs["node"] = time.Now().Unix()
@@ -249,9 +249,9 @@ func imToOpenMetrics(ims []IntermediateMetric) (string, error) {
 }
 
 func (m *Monoceros) MetricsHandler(w http.ResponseWriter, _ *http.Request) {
-	m.logger.Println("/metrics request")
+	// m.logger.Println("/metrics request")
 	var sb strings.Builder
-	m.logger.Println("try lock")
+	// m.logger.Println("try lock")
 	m.lock.Lock()
 	for _, metrics := range m.latestMetrics {
 		sb.WriteString(metrics)
