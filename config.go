@@ -1,6 +1,8 @@
 package monoceros
 
 import (
+	"time"
+
 	"github.com/c12s/hyparview/hyparview"
 	"github.com/c12s/plumtree"
 )
@@ -11,7 +13,8 @@ type TreeOverlayConfig struct {
 }
 
 type AggregationConfig struct {
-	TAggSec int64 `env:"T_AGG_SEC"`
+	TAggSec        int64 `env:"T_AGG_SEC"`
+	ScoreGossipSec int64 `env:"SCORE_GOSSIP_SEC"`
 }
 
 type Config struct {
@@ -27,4 +30,8 @@ type Config struct {
 	RNContactAddr  string `env:"RN_CONTACT_NODE_ADDR"`
 	Aggregation    AggregationConfig
 	LogPath        string `env:"LOG_PATH"`
+}
+
+func (c Config) ScoreGossipInterval() time.Duration {
+	return time.Duration(c.Aggregation.ScoreGossipSec) * time.Second
 }

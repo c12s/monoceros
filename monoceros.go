@@ -16,6 +16,7 @@ import (
 	"maps"
 
 	"github.com/c12s/hyparview/data"
+	"github.com/c12s/hyparview/hyparview"
 	"github.com/c12s/hyparview/transport"
 	"github.com/c12s/plumtree"
 )
@@ -48,6 +49,9 @@ type TreeOverlay struct {
 	getLocalMetrics        func() []IntermediateMetric
 	AdditionalMetricLabels map[string]string
 	quit                   chan struct{}
+	knownScores            map[string]map[string]int
+	lock                   *sync.Mutex
+	logger                 *log.Logger
 }
 
 type Monoceros struct {
@@ -146,6 +150,9 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		rank:                   1,
 		maxRank:                1,
 		quit:                   make(chan struct{}),
+		knownScores:            make(map[string]map[string]int),
+		lock:                   m.lock,
+		logger:                 m.logger,
 	}
 	m.RRN = &TreeOverlay{
 		ID:                     REGIONAL_ROOTS_NETWORK,
@@ -157,7 +164,12 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		rank:                   1,
 		maxRank:                1,
 		quit:                   make(chan struct{}),
+		knownScores:            make(map[string]map[string]int),
+		lock:                   m.lock,
+		logger:                 m.logger,
 	}
+	rn.Protocol.AddClientMsgHandler(SCORE_MSG_TYPE, m.RN.onScoreMsg)
+	rrn.Protocol.AddClientMsgHandler(SCORE_MSG_TYPE, m.RRN.onScoreMsg)
 	return m
 }
 
@@ -235,6 +247,10 @@ func (m *Monoceros) initRN() {
 	m.RN.plumtree.OnTreeConstructed(m.joinRRN)
 	m.RN.plumtree.OnGossip(m.onGossipMsg)
 	m.RN.plumtree.OnDirect(m.onDirectMsg)
+	m.RN.plumtree.OnPeerDown(func(p hyparview.Peer) {
+		m.RN.removeScoreForPeer(p.Node.ID)
+	})
+	startPeriodic(m.RN.broadcastScore, m.config.ScoreGossipInterval())
 	go m.tryPromote(m.RN)
 }
 
@@ -245,6 +261,10 @@ func (m *Monoceros) initRRN() {
 	})
 	m.RRN.plumtree.OnGossip(m.onGossipMsg)
 	m.RRN.plumtree.OnDirect(m.onDirectMsg)
+	m.RRN.plumtree.OnPeerDown(func(p hyparview.Peer) {
+		m.RRN.removeScoreForPeer(p.Node.ID)
+	})
+	startPeriodic(m.RRN.broadcastScore, m.config.ScoreGossipInterval())
 	go m.tryPromote(m.RRN)
 }
 
@@ -307,7 +327,7 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 		expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec*1000000000) + float64(network.rank-1)/float64(network.maxRank)*float64(maxTAgg*1000000000)
 		now := time.Now().UnixNano()
 		// m.logger.Println("peers num", peersNum, "now time", now, "expected aggregation time", expectedAggregationTime)
-		if expectedAggregationTime < float64(now) {
+		if expectedAggregationTime < float64(now) && network.highestScoreInNeighborhood() {
 			m.promote(network)
 		}
 		m.lock.Unlock()
@@ -319,7 +339,7 @@ func (m *Monoceros) promote(network *TreeOverlay) {
 	m.logger.Println("promoting", network.ID)
 	tree := plumtree.TreeMetadata{
 		Id:    fmt.Sprintf("%s_%s", network.ID, m.config.NodeID),
-		Score: m.config.NodeID,
+		Score: Score(),
 	}
 	network.local = &tree
 	m.lock.Unlock()
@@ -578,7 +598,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 	// todo: ?? da li azurirati samo ako nije cancel == true
 	network.lastAggregationTime = int64(math.Max(float64(time.Now().UnixNano()), float64(network.lastAggregationTime)))
 	localForAggregation := network.getLocalMetrics()
-	localScores := map[string]float64{m.config.NodeID: 1}
+	localScores := map[string]float64{m.config.NodeID: float64(Score())}
 	receivers, err := network.plumtree.GetChildren(tree.Id)
 	if err != nil {
 		// m.logger.Println("error while fetching tree children", tree, err)
@@ -586,7 +606,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 	// m.logger.Println("children to send req", receivers)
 	// m.logger.Println("has parent", network.plumtree.HasParent(tree.Id))
 	cancel := false
-	if (tree.Score < m.config.NodeID || slices.ContainsFunc(network.activeRequests, func(r *ActiveAggregationReq) bool {
+	if (!m.HasHigherScore(tree.NodeID(), tree.Score) || slices.ContainsFunc(network.activeRequests, func(r *ActiveAggregationReq) bool {
 		return r != nil && r.Tree.Score > tree.Score
 	})) && network.plumtree.HasParent(tree.Id) {
 		cancel = true

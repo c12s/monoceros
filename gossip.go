@@ -11,6 +11,8 @@ import (
 	"github.com/c12s/plumtree"
 )
 
+var GLOBAL_GOSSIP_MSG_TYPE data.MessageType = data.UNKNOWN + 1
+
 type GossipNode struct {
 	membership    plumtree.MembershipProtocol
 	seenMessages  map[string]bool
@@ -23,7 +25,7 @@ func NewGossipNode(membership plumtree.MembershipProtocol) *GossipNode {
 		membership:   membership,
 		seenMessages: make(map[string]bool),
 	}
-	gn.membership.AddCustomMsgHandler(gn.onGossipReceived)
+	gn.membership.AddClientMsgHandler(GLOBAL_GOSSIP_MSG_TYPE, gn.onGossipReceived)
 	gn.membership.OnPeerUp(func(peer hyparview.Peer) {
 		if gn.peerUpHandler == nil {
 			return
@@ -67,7 +69,7 @@ func (gn *GossipNode) Broadcast(msg []byte) {
 	}
 	for _, peer := range gn.membership.GetPeers(100) {
 		err := peer.Conn.Send(data.Message{
-			Type:    data.CUSTOM,
+			Type:    GLOBAL_GOSSIP_MSG_TYPE,
 			Payload: msgBytes,
 		})
 		if err != nil {
@@ -83,12 +85,12 @@ func (gn *GossipNode) Send(msg []byte, to transport.Conn) error {
 	binary.LittleEndian.PutUint64(nowBytes, uint64(now))
 	msgBytes := append(nowBytes, msg...)
 	return to.Send(data.Message{
-		Type:    data.CUSTOM,
+		Type:    GLOBAL_GOSSIP_MSG_TYPE,
 		Payload: msgBytes,
 	})
 }
 
-func (gn *GossipNode) onGossipReceived(msgBytes []byte, from transport.Conn) error {
+func (gn *GossipNode) onGossipReceived(msgBytes []byte, from hyparview.Peer) {
 	// msgBytes := make([]byte, 0)
 
 	// err := json.Unmarshal(msgBytes1, &msgBytes)
@@ -101,36 +103,35 @@ func (gn *GossipNode) onGossipReceived(msgBytes []byte, from transport.Conn) err
 	_, err := hashFn.Write(msgBytes)
 	if err != nil {
 		// log.Println("Error creating hash:", err)
-		return nil
+		return
 	}
 	msgId := hashFn.Sum(nil)
 	if gn.seenMessages[string(msgId)] {
 		// log.Println("msg already seen:", msgBytes)
-		return nil
+		return
 	}
 	gn.seenMessages[string(msgId)] = true
 	msg := msgBytes[8:]
 	// log.Println("Received:", msg)
 	if gn.gossipHandler != nil {
-		proceed := gn.gossipHandler(msg, from)
+		proceed := gn.gossipHandler(msg, from.Conn)
 		if !proceed {
 			// log.Println("quit broadcasting signal ...")
-			return nil
+			return
 		}
 	}
 	for _, peer := range gn.membership.GetPeers(100) {
-		if peer.Conn.GetAddress() == from.GetAddress() {
+		if peer.Conn.GetAddress() == from.Conn.GetAddress() {
 			continue
 		}
 		err := peer.Conn.Send(data.Message{
-			Type:    data.CUSTOM,
+			Type:    GLOBAL_GOSSIP_MSG_TYPE,
 			Payload: msgBytes,
 		})
 		if err != nil {
 			// log.Println("error while forwarding msg in global network", err)
 		}
 	}
-	return nil
 }
 
 func (gn *GossipNode) AddGossipHandler(handler func([]byte, transport.Conn) bool) {
