@@ -77,13 +77,14 @@ func (n *TreeOverlay) removeScoreForPeer(nodeID string) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	delete(n.knownScores, nodeID)
+	for _, scores := range n.knownScores {
+		delete(scores, nodeID)
+	}
 	n.logger.Println("SCORES AFTER REMOVE", n.knownScores)
 }
 
 // locked by caller
 func (n *TreeOverlay) highestScoreInNeighborhood() bool {
-	// n.lock.Lock()
-	// defer n.lock.Unlock()
 	selfID := n.plumtree.Protocol.Self().ID
 	maxID := selfID
 	maxScore := Score()
