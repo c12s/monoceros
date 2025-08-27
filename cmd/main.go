@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/c12s/hyparview/data"
@@ -106,7 +105,8 @@ func main() {
 		ID:            mcConfig.NodeID,
 		ListenAddress: mcConfig.GNListenAddr,
 	}
-	gnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(gnSelf.ListenAddress, ":")[1])))
+	gnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(gnSelf.ListenAddress))
+	// gnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(gnSelf.ListenAddress, ":")[1])))
 	gnHv, err := hyparview.NewHyParView(hvConfig, gnSelf, gnConnManager, gnHvLogger)
 	if err != nil {
 		log.Fatal(err)
@@ -120,7 +120,8 @@ func main() {
 		ID:            mcConfig.NodeID,
 		ListenAddress: mcConfig.RNListenAddr,
 	}
-	rnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(rnSelf.ListenAddress, ":")[1])))
+	rnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(rnSelf.ListenAddress))
+	// rnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(rnSelf.ListenAddress, ":")[1])))
 	rnHv, err := hyparview.NewHyParView(hvConfig, rnSelf, rnConnManager, rnHvLogger)
 	if err != nil {
 		log.Fatal(err)
@@ -135,7 +136,8 @@ func main() {
 		ID:            mcConfig.NodeID,
 		ListenAddress: mcConfig.RRNListenAddr,
 	}
-	rrnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(rrnSelf.ListenAddress, ":")[1])))
+	rrnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(rrnSelf.ListenAddress))
+	// rrnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(rrnSelf.ListenAddress, ":")[1])))
 	rrnHvConfig := hvConfig
 	rrnHvConfig.Fanout = 1000
 	rrnHv, err := hyparview.NewHyParView(rrnHvConfig, rrnSelf, rrnConnManager, rrnHvLogger)
@@ -154,7 +156,8 @@ func main() {
 	mux.HandleFunc("POST /rules", mc.AddRulesHandler)
 	mux.HandleFunc("DELETE /rules/{id}", mc.RemoveRulesHandler)
 	server := http.Server{
-		Addr:    fmt.Sprintf("0.0.0.0:%s", strings.Split(mcConfig.HTTPServerAddr, ":")[1]),
+		Addr: mcConfig.HTTPServerAddr,
+		// Addr:    fmt.Sprintf("0.0.0.0:%s", strings.Split(mcConfig.HTTPServerAddr, ":")[1]),
 		Handler: mux,
 	}
 	go func() {
