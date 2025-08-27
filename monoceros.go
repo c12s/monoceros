@@ -964,7 +964,7 @@ func (m *Monoceros) exportResult(ims []IntermediateMetric, reqTimestamp, rcvTime
 		filename := fmt.Sprintf("/var/log/monoceros/results/%s.csv", name)
 		file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 		if err != nil {
-			// m.logger.Printf("failed to open/create file: %v", err)
+			m.logger.Printf("failed to open/create file: %v", err)
 			continue
 		}
 		defer file.Close()
@@ -975,7 +975,7 @@ func (m *Monoceros) exportResult(ims []IntermediateMetric, reqTimestamp, rcvTime
 		valStr := strconv.FormatFloat(im.Result.ComputeFinal(), 'f', -1, 64)
 		err = writer.Write([]string{reqTsStr, rcvTsStr, valStr})
 		if err != nil {
-			// m.logger.Println(err)
+			m.logger.Println(err)
 		}
 	}
 }
@@ -984,7 +984,7 @@ func (m *Monoceros) exportMsgCount() {
 	filename := "/var/log/monoceros/results/msg_count.csv"
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
-		// m.logger.Printf("failed to open/create file: %v", err)
+		m.logger.Printf("failed to open/create file: %v", err)
 		return
 	}
 	defer file.Close()
@@ -1001,6 +1001,6 @@ func (m *Monoceros) exportMsgCount() {
 	rcvdStr := strconv.Itoa(rcvd)
 	err = writer.Write([]string{tsStr, sentStr, rcvdStr})
 	if err != nil {
-		// m.logger.Println(err)
+		m.logger.Println(err)
 	}
 }
