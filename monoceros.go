@@ -392,48 +392,48 @@ func (m *Monoceros) initAggregation(network *TreeOverlay) {
 		msg := AggregationReq{
 			Timestamp: time.Now().UnixNano(),
 		}
-		// m.logger.Println("init aggregation", msg)
+		m.logger.Println(network.ID, "init aggregation", msg)
 		msgBytes, err := Serialize(msg)
 		if err != nil {
 			m.lock.Unlock()
-			// m.logger.Println("error serializing aggregation request", err)
+			m.logger.Println("error serializing aggregation request", err)
 			continue
 		}
 		networkId := network.local.Id
 		m.lock.Unlock()
 		err = network.plumtree.Broadcast(networkId, AGGREGATION_REQ_MSG_TYPE, msgBytes)
 		if err != nil {
-			// m.logger.Println("error broadcasting aggregation request", err)
+			m.logger.Println("error broadcasting aggregation request", err)
 		}
 		// ako je rrn, ukloni druge iz regiona
-		if network.ID == m.RRN.ID {
-			m.lock.Lock()
-			for id, region := range m.regionalRootRegions {
-				if region != m.config.Region || id == m.config.NodeID {
-					continue
-				}
-				gossip := RRUpdate{
-					Joined: false,
-					NodeInfo: data.Node{
-						ID:            id,
-						ListenAddress: m.regionalRootAddresses[id],
-					},
-					Region: region,
-				}
-				gossipBytes, err := json.Marshal(gossip)
-				if err != nil {
-					// m.logger.Println(err)
-					return
-				}
-				gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
-				// m.logger.Println("sending rrn update", gossipBytes)
-				m.lock.Unlock()
-				m.GN.Broadcast(gossipBytes)
-				// m.logger.Println("try lock")
-				m.lock.Lock()
-			}
-			m.lock.Unlock()
-		}
+		// if network.ID == m.RRN.ID {
+		// 	m.lock.Lock()
+		// 	for id, region := range m.regionalRootRegions {
+		// 		if region != m.config.Region || id == m.config.NodeID {
+		// 			continue
+		// 		}
+		// 		gossip := RRUpdate{
+		// 			Joined: false,
+		// 			NodeInfo: data.Node{
+		// 				ID:            id,
+		// 				ListenAddress: m.regionalRootAddresses[id],
+		// 			},
+		// 			Region: region,
+		// 		}
+		// 		gossipBytes, err := json.Marshal(gossip)
+		// 		if err != nil {
+		// 			// m.logger.Println(err)
+		// 			return
+		// 		}
+		// 		gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
+		// 		// m.logger.Println("sending rrn update", gossipBytes)
+		// 		m.lock.Unlock()
+		// 		m.GN.Broadcast(gossipBytes)
+		// 		// m.logger.Println("try lock")
+		// 		m.lock.Lock()
+		// 	}
+		// 	m.lock.Unlock()
+		// }
 	}
 }
 
