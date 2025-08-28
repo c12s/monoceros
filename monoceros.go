@@ -132,7 +132,7 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		targets: []ScrapeTarget{
 			{
 				Name:    "test_target",
-				Address: "127.0.0.1:9100",
+				Address: "127.0.0.1:9200",
 			},
 		},
 		config: config,
@@ -870,9 +870,9 @@ func (m *Monoceros) leaveRRN(tree plumtree.TreeMetadata) {
 	// m.logger.Println("try lock")
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	// m.logger.Println("tree destroyed in RN, should leave RRN", tree)
+	m.logger.Println("tree destroyed in RN, should leave RRN", tree)
 	if tree.Id != fmt.Sprintf("%s_%s", m.RN.ID, m.config.NodeID) {
-		// m.logger.Println("should not")
+		m.logger.Println("should not")
 		return
 	}
 	if m.RRN.local != nil {
@@ -881,13 +881,13 @@ func (m *Monoceros) leaveRRN(tree plumtree.TreeMetadata) {
 		// m.logger.Println("try lock")
 		m.lock.Lock()
 		if err != nil {
-			// m.logger.Println(err)
+			m.logger.Println(err)
 		}
 	}
 	m.RRN.joined = false
-	// m.logger.Println("dosao do leave")
+	m.logger.Println("dosao do leave")
 	m.RRN.plumtree.Leave()
-	// m.logger.Println("prosao leave")
+	m.logger.Println("prosao leave")
 	gossip := RRUpdate{
 		Joined: false,
 		NodeInfo: data.Node{
@@ -902,7 +902,7 @@ func (m *Monoceros) leaveRRN(tree plumtree.TreeMetadata) {
 		return
 	}
 	gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
-	// m.logger.Println("sending rrn update", gossipBytes)
+	m.logger.Println("sending rrn update", gossipBytes)
 	m.lock.Unlock()
 	m.GN.Broadcast(gossipBytes)
 	// m.logger.Println("try lock")
