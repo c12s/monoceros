@@ -3,7 +3,6 @@ package monoceros
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"maps"
 	"net/http"
 	"slices"
@@ -24,66 +23,67 @@ type ScrapeTarget struct {
 	Address string
 }
 
-// const tmpMetrics = `# HELP app_request_processing_time_seconds Average request processing time
-// # TYPE app_request_processing_time_seconds gauge
-// app_request_processing_time_seconds 0.256
+const tmpMetrics = `# HELP app_request_processing_time_seconds Average request processing time
+# TYPE app_request_processing_time_seconds gauge
+app_request_processing_time_seconds 0.256
 
-// # HELP app_memory_usage_bytes Current memory usage in bytes
-// # TYPE app_memory_usage_bytes gauge
-// app_memory_usage_bytes 512
+# HELP app_memory_usage_bytes Current memory usage in bytes
+# TYPE app_memory_usage_bytes gauge
+app_memory_usage_bytes 512
 
-// # HELP app_cpu_load_ratio CPU load (0-1)
-// # TYPE app_cpu_load_ratio gauge
-// app_cpu_load_ratio 0.13
+# HELP app_cpu_load_ratio CPU load (0-1)
+# TYPE app_cpu_load_ratio gauge
+app_cpu_load_ratio 0.13
 
-// # HELP app_active_sessions Current active user sessions
-// # TYPE app_active_sessions gauge
-// app_active_sessions 42
+# HELP app_active_sessions Current active user sessions
+# TYPE app_active_sessions gauge
+app_active_sessions 42
 
-// # HELP app_queue_depth_pending_jobs Jobs waiting in queue
-// # TYPE app_queue_depth_pending_jobs gauge
-// app_queue_depth_pending_jobs 7
+# HELP app_queue_depth_pending_jobs Jobs waiting in queue
+# TYPE app_queue_depth_pending_jobs gauge
+app_queue_depth_pending_jobs 7
 
-// # HELP app_cache_hit_ratio Cache hit ratio
-// # TYPE app_cache_hit_ratio gauge
-// app_cache_hit_ratio 0.82
+# HELP app_cache_hit_ratio Cache hit ratio
+# TYPE app_cache_hit_ratio gauge
+app_cache_hit_ratio 0.82
 
-// # HELP app_current_goroutines Goroutine count
-// # TYPE app_current_goroutines gauge
-// app_current_goroutines 33
+# HELP app_current_goroutines Goroutine count
+# TYPE app_current_goroutines gauge
+app_current_goroutines 33
 
-// # HELP app_last_backup_timestamp_seconds Unix timestamp of last successful backup
-// # TYPE app_last_backup_timestamp_seconds gauge
-// app_last_backup_timestamp_seconds 1.700000e+09
+# HELP app_last_backup_timestamp_seconds Unix timestamp of last successful backup
+# TYPE app_last_backup_timestamp_seconds gauge
+app_last_backup_timestamp_seconds 1.700000e+09
 
-// # HELP app_http_requests_total Total HTTP requests processed
-// # TYPE app_http_requests_total counter
-// app_http_requests_total 12890
+# HELP app_http_requests_total Total HTTP requests processed
+# TYPE app_http_requests_total counter
+app_http_requests_total 12890
 
-// # HELP app_errors_total Total errors encountered
-// # TYPE app_errors_total counter
-// app_errors_total 17
-// `
+# HELP app_errors_total Total errors encountered
+# TYPE app_errors_total counter
+app_errors_total 17
+`
 
 func (m *Monoceros) fetchNodeMetrics() []*dto.MetricFamily {
 	result := make([]*dto.MetricFamily, 0)
 	for _, target := range m.targets {
-		// get from target
-		resp, err := http.Get(fmt.Sprintf("http://%s/metrics", target.Address))
-		if err != nil {
-			// m.logger.Printf("Error scraping %s: %v", target.Address, err)
-			continue
-		}
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			// m.logger.Printf("Error reading %s: %v", target.Address, err)
-			continue
-		}
-		// m.logger.Println("metrics received")
-		// m.logger.Println(string(body))
-		// to structs
-		mfs, err := parseOpenMetrics(string(body))
+		// // get from target
+		// resp, err := http.Get(fmt.Sprintf("http://%s/metrics", target.Address))
+		// if err != nil {
+		// 	// m.logger.Printf("Error scraping %s: %v", target.Address, err)
+		// 	continue
+		// }
+		// body, err := io.ReadAll(resp.Body)
+		// resp.Body.Close()
+		// if err != nil {
+		// 	// m.logger.Printf("Error reading %s: %v", target.Address, err)
+		// 	continue
+		// }
+		// // m.logger.Println("metrics received")
+		// // m.logger.Println(string(body))
+		// // to structs
+		// mfs, err := parseOpenMetrics(string(body))
+		mfs, err := parseOpenMetrics(tmpMetrics)
 		if err != nil {
 			// m.logger.Println(err)
 			continue
