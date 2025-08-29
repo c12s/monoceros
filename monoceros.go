@@ -203,7 +203,7 @@ func (m *Monoceros) Start() {
 				// m.logger.Println("should clean up active request", *aar)
 				children, _ := network.plumtree.GetChildren(aar.Tree.Id)
 				// todo: ??
-				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || aar.Timestamp+m.config.Aggregation.TAggSec*1000000000 < time.Now().UnixNano() {
+				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || 2*aar.Timestamp+m.config.Aggregation.TAggSec*1000000000 < time.Now().UnixNano() {
 					// m.logger.Println("should")
 					toRemove = append(toRemove, aar)
 					m.completeAggregationReq(network, aar)
