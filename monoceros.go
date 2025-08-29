@@ -733,8 +733,10 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, req *ActiveAggr
 		// m.logger.Println("req done")
 		if req.Cancel {
 			// m.logger.Println("should destroy local tree")
+			tree := *network.local
 			m.lock.Unlock()
-			err := network.plumtree.DestroyTree(*network.local)
+			// todo: nil pointer
+			err := network.plumtree.DestroyTree(tree)
 			// m.logger.Println("try lock")
 			m.lock.Lock()
 			if err != nil {
@@ -876,8 +878,10 @@ func (m *Monoceros) leaveRRN(tree plumtree.TreeMetadata) {
 		return
 	}
 	if m.RRN.local != nil {
+		tree := *m.RRN.local
 		m.lock.Unlock()
-		err := m.RRN.plumtree.DestroyTree(*m.RRN.local)
+		// todo: nil pinter
+		err := m.RRN.plumtree.DestroyTree(tree)
 		// m.logger.Println("try lock")
 		m.lock.Lock()
 		if err != nil {
