@@ -409,34 +409,34 @@ func (m *Monoceros) initAggregation(network *TreeOverlay) {
 			m.logger.Println("error broadcasting aggregation request", err)
 		}
 		// ako je rrn, ukloni druge iz regiona
-		// if network.ID == m.RRN.ID {
-		// 	m.lock.Lock()
-		// 	for id, region := range m.regionalRootRegions {
-		// 		if region != m.config.Region || id == m.config.NodeID {
-		// 			continue
-		// 		}
-		// 		gossip := RRUpdate{
-		// 			Joined: false,
-		// 			NodeInfo: data.Node{
-		// 				ID:            id,
-		// 				ListenAddress: m.regionalRootAddresses[id],
-		// 			},
-		// 			Region: region,
-		// 		}
-		// 		gossipBytes, err := json.Marshal(gossip)
-		// 		if err != nil {
-		// 			// m.logger.Println(err)
-		// 			return
-		// 		}
-		// 		gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
-		// 		// m.logger.Println("sending rrn update", gossipBytes)
-		// 		m.lock.Unlock()
-		// 		m.GN.Broadcast(gossipBytes)
-		// 		// m.logger.Println("try lock")
-		// 		m.lock.Lock()
-		// 	}
-		// 	m.lock.Unlock()
-		// }
+		if network.ID == m.RRN.ID {
+			m.lock.Lock()
+			for id, region := range m.regionalRootRegions {
+				if region != m.config.Region || id == m.config.NodeID {
+					continue
+				}
+				gossip := RRUpdate{
+					Joined: false,
+					NodeInfo: data.Node{
+						ID:            id,
+						ListenAddress: m.regionalRootAddresses[id],
+					},
+					Region: region,
+				}
+				gossipBytes, err := json.Marshal(gossip)
+				if err != nil {
+					// m.logger.Println(err)
+					return
+				}
+				gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
+				// m.logger.Println("sending rrn update", gossipBytes)
+				m.lock.Unlock()
+				m.GN.Broadcast(gossipBytes)
+				// m.logger.Println("try lock")
+				m.lock.Lock()
+			}
+			m.lock.Unlock()
+		}
 	}
 }
 
