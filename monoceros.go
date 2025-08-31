@@ -466,7 +466,7 @@ func (m *Monoceros) onGossipMsg(tree plumtree.TreeMetadata, msgType string, msg 
 			// m.logger.Println("error while unmarshalling aggregation result", msg)
 			return
 		}
-		m.onAggregationResult(network, result)
+		m.onAggregationResult(network, tree, result)
 	}
 }
 
@@ -666,7 +666,7 @@ func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMe
 }
 
 // locked by caller
-func (m *Monoceros) onAggregationResult(network *TreeOverlay, result AggregationResult) {
+func (m *Monoceros) onAggregationResult(network *TreeOverlay, tree plumtree.TreeMetadata, result AggregationResult) {
 	m.logger.Println("received aggregation result", result)
 	received := time.Now().UnixNano()
 	// todo: ??
@@ -677,7 +677,7 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, result Aggregation
 	m.latestMetrics[result.NetworkID] = result.Aggregate
 	m.latestMetricsTs[result.NetworkID] = result.Timestamp
 	m.latestIM[result.NetworkID] = result.IMs
-	m.exportResult(result.IMs, result.Timestamp, received)
+	m.exportResult(result.IMs, tree.NodeID(), result.Timestamp, received)
 	if result.NetworkID == network.ID {
 		// todo: ??
 		network.rank = GetNodeRank(m.config.NodeID, result.RankList)
@@ -961,7 +961,7 @@ func GetNodeRank(nodeID string, scores map[string]float64) int64 {
 	return rank
 }
 
-func (m *Monoceros) exportResult(ims []IntermediateMetric, reqTimestamp, rcvTimestamp int64) {
+func (m *Monoceros) exportResult(ims []IntermediateMetric, tree string, reqTimestamp, rcvTimestamp int64) {
 	for _, im := range ims {
 		name := im.Metadata.Name + "{ "
 		for _, k := range slices.Sorted(maps.Keys(im.Metadata.Labels)) {
@@ -980,7 +980,7 @@ func (m *Monoceros) exportResult(ims []IntermediateMetric, reqTimestamp, rcvTime
 		reqTsStr := strconv.Itoa(int(reqTimestamp))
 		rcvTsStr := strconv.Itoa(int(rcvTimestamp))
 		valStr := strconv.FormatFloat(im.Result.ComputeFinal(), 'f', -1, 64)
-		err = writer.Write([]string{reqTsStr, rcvTsStr, valStr})
+		err = writer.Write([]string{tree, reqTsStr, rcvTsStr, valStr})
 		if err != nil {
 			m.logger.Println(err)
 		}
