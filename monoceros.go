@@ -325,9 +325,9 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 		// vreme koje je potrebno da poruka stigne od korena do trenutnog cvora
 		// n := 0.2
 		// expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec) + n
-		maxTAgg := 20
+		// maxTAgg := 20
 		// expectedAggregationTime := math.Max(float64(network.lastAggregationTime)+float64(m.config.Aggregation.TAggSec), float64(network.lastAggregationTime)+(float64(maxTAgg)*float64(network.rank)/float64(network.maxRank)))
-		expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec*1000000000) + float64(network.rank-1)/float64(network.maxRank)*float64(maxTAgg*1000000000)
+		expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec*1000000000) + float64(network.rank-1)/float64(network.maxRank)*float64(m.config.Aggregation.TAggMaxSec*1000000000)
 		now := time.Now().UnixNano()
 		// m.logger.Println("peers num", peersNum, "now time", now, "expected aggregation time", expectedAggregationTime)
 		if expectedAggregationTime < float64(now) && network.highestScoreInNeighborhood() {

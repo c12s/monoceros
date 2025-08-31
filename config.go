@@ -14,6 +14,7 @@ type TreeOverlayConfig struct {
 
 type AggregationConfig struct {
 	TAggSec        int64 `env:"T_AGG_SEC"`
+	TAggMaxSec     int64 `env:"T_AGG_MAX_SEC"`
 	ScoreGossipSec int64 `env:"SCORE_GOSSIP_SEC"`
 }
 
