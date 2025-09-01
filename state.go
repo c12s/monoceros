@@ -15,7 +15,7 @@ type State struct {
 	RegionalNetwork      any
 	RegionalRootsNetwork any
 	Synced               bool
-	RRAddr               map[string]string
+	Roots                map[string]RootInfo
 	RRRegions            map[string]string
 	LatestMetrics        map[string]string
 	LatestMetricsTs      map[string]int64
@@ -50,8 +50,7 @@ func (m *Monoceros) GetState() any {
 			ActiveRequests:      slices.Clone(m.RRN.activeRequests),
 		},
 		Synced:          m.synced,
-		RRAddr:          maps.Clone(m.regionalRootAddresses),
-		RRRegions:       maps.Clone(m.regionalRootRegions),
+		Roots:           maps.Clone(m.Roots),
 		LatestMetrics:   maps.Clone(m.latestMetrics),
 		LatestMetricsTs: maps.Clone(m.latestMetricsTs),
 	}

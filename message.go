@@ -48,16 +48,15 @@ const (
 	RULE_REMOVED_MSG_TYPE byte = 5
 )
 
-type RRUpdate struct {
-	Joined   bool
+type RootInfo struct {
 	NodeInfo data.Node
 	Region   string
+	Time     int64
 }
 
 type SyncStateResp struct {
-	RegionalRootAddresses map[string]string
-	RegionalRootRegions   map[string]string
-	Rules                 []AggregationRule
+	RegionalRoots map[string]RootInfo
+	Rules         []AggregationRule
 }
 
 type RuleAdded struct {

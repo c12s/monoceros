@@ -70,7 +70,7 @@ func (n *TreeOverlay) updateScores(from string, scores map[string]int) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	n.knownScores[from] = scores
-	n.logger.Println("SCORES AFTER UPDATE", n.knownScores)
+	// n.logger.Println("SCORES AFTER UPDATE", n.knownScores)
 }
 
 func (n *TreeOverlay) removeScoreForPeer(nodeID string) {
@@ -80,7 +80,7 @@ func (n *TreeOverlay) removeScoreForPeer(nodeID string) {
 	for _, scores := range n.knownScores {
 		delete(scores, nodeID)
 	}
-	n.logger.Println("SCORES AFTER REMOVE", n.knownScores)
+	// n.logger.Println("SCORES AFTER REMOVE", n.knownScores)
 }
 
 // locked by caller
