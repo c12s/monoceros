@@ -27,6 +27,7 @@ type TreeOverlayState struct {
 	Local               *plumtree.TreeMetadata
 	LastAggregationTime int64
 	ActiveRequests      []*ActiveAggregationReq
+	Scores              map[string]map[string]int
 }
 
 func (m *Monoceros) GetState() any {
@@ -41,6 +42,7 @@ func (m *Monoceros) GetState() any {
 			Local:               m.RN.local,
 			LastAggregationTime: m.RN.lastAggregationTime,
 			ActiveRequests:      slices.Clone(m.RN.activeRequests),
+			Scores:              maps.Clone(m.RN.knownScores),
 		},
 		RegionalRootsNetwork: TreeOverlayState{
 			Plumtree:            m.RRN.plumtree.GetState(),
@@ -48,6 +50,7 @@ func (m *Monoceros) GetState() any {
 			Local:               m.RRN.local,
 			LastAggregationTime: m.RRN.lastAggregationTime,
 			ActiveRequests:      slices.Clone(m.RRN.activeRequests),
+			Scores:              maps.Clone(m.RRN.knownScores),
 		},
 		Synced:          m.synced,
 		Roots:           maps.Clone(m.Roots),
