@@ -31,6 +31,7 @@ type Config struct {
 	RNContactAddr  string `env:"RN_CONTACT_NODE_ADDR"`
 	Aggregation    AggregationConfig
 	LogPath        string `env:"LOG_PATH"`
+	WaitFilePath   string `env:"WAIT_FILE_PATH"`
 }
 
 func (c Config) ScoreGossipInterval() time.Duration {

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/c12s/hyparview/data"
 	"github.com/c12s/hyparview/hyparview"
@@ -46,6 +47,11 @@ func main() {
 		log.Fatal(err)
 	}
 	log.Println(mcConfig)
+
+	if err := waitForFile(mcConfig.WaitFilePath, 1000*time.Second); err != nil {
+		log.Println("Error:", err)
+		return
+	}
 
 	// loggers
 
@@ -175,5 +181,19 @@ func main() {
 
 	if err := server.Close(); err != nil {
 		log.Fatalf("HTTP close error: %v", err)
+	}
+}
+
+func waitForFile(path string, timeout time.Duration) error {
+	start := time.Now()
+	for {
+		if _, err := os.Stat(path); err == nil {
+			// file exists
+			return nil
+		}
+		if time.Since(start) > timeout {
+			return fmt.Errorf("timeout waiting for %s", path)
+		}
+		time.Sleep(100 * time.Millisecond) // backoff interval
 	}
 }
