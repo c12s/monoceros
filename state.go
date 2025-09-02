@@ -26,7 +26,7 @@ type TreeOverlayState struct {
 	Local               *plumtree.TreeMetadata
 	LastAggregationTime int64
 	ActiveRequests      []*ActiveAggregationReq
-	Scores              map[string]map[string]int
+	Scores              map[string]ScoreMsg
 }
 
 func (m *Monoceros) GetState() any {

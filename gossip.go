@@ -11,7 +11,7 @@ import (
 	"github.com/c12s/plumtree"
 )
 
-var GLOBAL_GOSSIP_MSG_TYPE data.MessageType = data.UNKNOWN + 1
+const GLOBAL_GOSSIP_MSG_TYPE data.MessageType = data.UNKNOWN + 1
 
 type GossipNode struct {
 	membership    plumtree.MembershipProtocol

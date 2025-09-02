@@ -110,7 +110,7 @@ func (m *Monoceros) fetchNodeMetrics() []*dto.MetricFamily {
 		// m.logger.Println(err)
 	} else {
 		m.latestMetrics["node"] = om
-		m.latestMetricsTs["node"] = time.Now().Unix()
+		m.latestMetricsTs["node"] = time.Now().UnixNano()
 	}
 	return result
 }

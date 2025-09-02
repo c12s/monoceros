@@ -13,6 +13,7 @@ const SCORE_MSG_TYPE data.MessageType = plumtree.GRAFT_MSG_TYPE + 1
 
 type ScoreMsg struct {
 	Scores map[string]int
+	Time   int64
 }
 
 func Score() int {
@@ -34,6 +35,7 @@ func startPeriodic(fn func(), interval time.Duration) {
 func (n *TreeOverlay) broadcastScore() {
 	payload := ScoreMsg{
 		Scores: map[string]int{n.plumtree.Protocol.Self().ID: Score()},
+		Time:   time.Now().UnixNano(),
 	}
 	n.lock.Lock()
 	for _, p := range n.plumtree.GetPeers() {
@@ -41,7 +43,7 @@ func (n *TreeOverlay) broadcastScore() {
 		if !ok {
 			continue
 		}
-		payload.Scores[p.Node.ID] = scores[p.Node.ID]
+		payload.Scores[p.Node.ID] = scores.Scores[p.Node.ID]
 	}
 	n.lock.Unlock()
 	msg := data.Message{
@@ -63,10 +65,10 @@ func (n *TreeOverlay) onScoreMsg(msgBytes []byte, sender hyparview.Peer) {
 		n.logger.Println("failed to deserialize Score message", "error", err)
 		return
 	}
-	n.updateScores(sender.Node.ID, msg.Scores)
+	n.updateScores(sender.Node.ID, *msg)
 }
 
-func (n *TreeOverlay) updateScores(from string, scores map[string]int) {
+func (n *TreeOverlay) updateScores(from string, scores ScoreMsg) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	n.knownScores[from] = scores
@@ -78,9 +80,9 @@ func (n *TreeOverlay) removeScoreForPeer(nodeID string) {
 	defer n.lock.Unlock()
 	delete(n.knownScores, nodeID)
 	for _, scores := range n.knownScores {
-		delete(scores, nodeID)
+		delete(scores.Scores, nodeID)
 	}
-	// n.logger.Println("SCORES AFTER REMOVE", n.knownScores)
+	n.logger.Println("SCORES AFTER REMOVE", n.knownScores)
 }
 
 // locked by caller
@@ -89,7 +91,10 @@ func (n *TreeOverlay) highestScoreInNeighborhood() bool {
 	maxID := selfID
 	maxScore := Score()
 	for _, scores := range n.knownScores {
-		for id, score := range scores {
+		if scores.Time+5000000000 < time.Now().UnixNano() {
+			continue
+		}
+		for id, score := range scores.Scores {
 			if score > maxScore || (score == maxScore && id > maxID) {
 				maxID = id
 				maxScore = score
