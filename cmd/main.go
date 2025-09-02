@@ -48,11 +48,11 @@ func main() {
 	}
 	log.Println(mcConfig)
 
-	log.Println("waiting for the start signal, path", mcConfig.WaitFilePath)
-	if err := waitForFile(mcConfig.WaitFilePath, 1000*time.Second); err != nil {
-		log.Println("Error:", err)
-		return
-	}
+	// log.Println("waiting for the start signal, path", mcConfig.WaitFilePath)
+	// if err := waitForFile(mcConfig.WaitFilePath, 1000*time.Second); err != nil {
+	// 	log.Println("Error:", err)
+	// 	return
+	// }
 
 	// loggers
 
