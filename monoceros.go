@@ -291,11 +291,11 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 // locked
 func (m *Monoceros) tryPromote(network *TreeOverlay) {
 	// todo: ??
-	if !strings.HasSuffix(m.config.NodeID, "9") {
-		return
-		// time.Sleep(120 * time.Second)
-		// time.Sleep(time.Duration(m.config.Aggregation.TAggSec) * time.Second)
-	}
+	// if !strings.HasSuffix(m.config.NodeID, "9") {
+	// 	return
+	// 	// time.Sleep(120 * time.Second)
+	// 	// time.Sleep(time.Duration(m.config.Aggregation.TAggSec) * time.Second)
+	// }
 	for range time.NewTicker(100 * time.Millisecond).C {
 		m.lock.Lock()
 		if !network.joined || network.local != nil {
