@@ -273,29 +273,11 @@ func (m *Monoceros) initRRN() {
 
 // locked
 func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata) {
-	// m.logger.Println("try lock")
 	m.lock.Lock()
 	defer m.lock.Unlock()
-	// m.logger.Println("clean up tree", network.ID, tree)
-	// m.logger.Println("active requests")
-	// for _, r := range network.activeRequests {
-	// 	// m.logger.Println(r.Timestamp)
-	// 	// m.logger.Println(r.Tree)
-	// 	for _, w := range r.WaitingFor {
-	// 		// m.logger.Println(w.ID)
-	// 	}
-	// }
 	network.activeRequests = slices.DeleteFunc(network.activeRequests, func(r *ActiveAggregationReq) bool {
 		return r.Tree.Id == tree.Id
 	})
-	// m.logger.Println("active requests")
-	// for _, r := range network.activeRequests {
-	// m.logger.Println(r.Timestamp)
-	// m.logger.Println(r.Tree)
-	// for _, w := range r.WaitingFor {
-	// m.logger.Println(w.ID)
-	// }
-	// }
 	if network.local != nil && tree.Id == network.local.Id {
 		network.local = nil
 		network.localAggCount = 0
@@ -315,26 +297,18 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 		// time.Sleep(time.Duration(m.config.Aggregation.TAggSec) * time.Second)
 	}
 	for range time.NewTicker(100 * time.Millisecond).C {
-		// m.logger.Println("try lock")
 		m.lock.Lock()
 		if !network.joined || network.local != nil {
 			m.lock.Unlock()
 			continue
 		}
-		// m.logger.Println("try promote")
 		// peersNum := network.plumtree.GetPeersNum()
 		// problem: ako sporo konvergira kada se veliki broj pokrnee odjednom
 		// onda se moze desiti da, nakon sto unisti svoje stablo, opet promovise sebe
 		// iako ne bi trebao, broj poruka ostaje zauvek preveliki
 		// todo: ??
-		// vreme koje je potrebno da poruka stigne od korena do trenutnog cvora
-		// n := 0.2
-		// expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec) + n
-		// maxTAgg := 20
-		// expectedAggregationTime := math.Max(float64(network.lastAggregationTime)+float64(m.config.Aggregation.TAggSec), float64(network.lastAggregationTime)+(float64(maxTAgg)*float64(network.rank)/float64(network.maxRank)))
 		expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec*1000000000) + float64(network.rank-1)/float64(network.maxRank)*float64(m.config.Aggregation.TAggMaxSec*1000000000)
 		now := time.Now().UnixNano()
-		// m.logger.Println("peers num", peersNum, "now time", now, "expected aggregation time", expectedAggregationTime)
 		if expectedAggregationTime < float64(now) && network.highestScoreInNeighborhood() {
 			m.promote(network)
 		}
@@ -820,11 +794,43 @@ func (m *Monoceros) gossipRoot() {
 func (m *Monoceros) rejoinRRN() {
 	for range time.NewTicker(time.Duration(m.config.Aggregation.TAggSec) * time.Second).C {
 		m.lock.Lock()
-		if !m.RRN.joined || m.RRN.plumtree.GetPeersNum() > 0 {
+		if !m.RRN.joined {
 			m.lock.Unlock()
 			continue
 		}
-		m.contactRRNNode()
+		if m.RRN.plumtree.GetPeersNum() == 0 {
+			m.contactRRNNode()
+		} else {
+			// NOTE: TMP ONLY !!!!!!!
+			perRegion := map[string][]hyparview.Peer{}
+			for _, p := range m.RRN.plumtree.GetPeers() {
+				region := strings.Split(p.Node.ID, "_")[0]
+				_, ok := perRegion[region]
+				if !ok {
+					perRegion[region] = make([]hyparview.Peer, 0)
+				}
+				perRegion[region] = append(perRegion[region], p)
+			}
+			for _, peers := range perRegion {
+				if len(peers) < 2 {
+					continue
+				}
+				maxId := peers[0].Node.ID
+				for _, p := range peers {
+					if p.Node.ID > maxId {
+						maxId = p.Node.ID
+					}
+				}
+				for _, p := range peers {
+					if p.Node.ID != maxId {
+						err := p.Conn.Disconnect()
+						if err != nil {
+							m.logger.Println(err)
+						}
+					}
+				}
+			}
+		}
 		m.lock.Unlock()
 	}
 }
