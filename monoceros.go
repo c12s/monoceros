@@ -310,7 +310,7 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 func (m *Monoceros) tryPromote(network *TreeOverlay) {
 	// todo: ??
 	if !strings.HasSuffix(m.config.NodeID, "_9") && !strings.HasSuffix(m.config.NodeID, "_99") {
-		time.Sleep(60 * time.Second)
+		time.Sleep(120 * time.Second)
 		// time.Sleep(time.Duration(m.config.Aggregation.TAggSec) * time.Second)
 	}
 	for range time.NewTicker(100 * time.Millisecond).C {
