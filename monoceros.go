@@ -379,7 +379,7 @@ func (m *Monoceros) triggerAggregation(network *TreeOverlay) {
 	for {
 		select {
 		case <-time.NewTicker(time.Duration(m.config.Aggregation.TAggSec) * time.Second).C:
-			if network.local != nil {
+			if network.local != nil && network.localAggCount > 0 {
 				network.aggregate <- struct{}{}
 			}
 		case <-network.quit:
