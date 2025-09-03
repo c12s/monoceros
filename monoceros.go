@@ -309,9 +309,10 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 // locked
 func (m *Monoceros) tryPromote(network *TreeOverlay) {
 	// todo: ??
-	// if m.config.NodeID != "r1_node_9" {
-	// 	time.Sleep(time.Duration(m.config.Aggregation.TAggSec) * time.Second)
-	// }
+	if !strings.HasSuffix(m.config.NodeID, "_9") && !strings.HasSuffix(m.config.NodeID, "_99") {
+		time.Sleep(60 * time.Second)
+		// time.Sleep(time.Duration(m.config.Aggregation.TAggSec) * time.Second)
+	}
 	for range time.NewTicker(100 * time.Millisecond).C {
 		// m.logger.Println("try lock")
 		m.lock.Lock()
