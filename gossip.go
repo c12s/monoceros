@@ -3,6 +3,7 @@ package monoceros
 import (
 	"encoding/binary"
 	"hash/fnv"
+	"sync"
 	"time"
 
 	"github.com/c12s/hyparview/data"
@@ -18,12 +19,14 @@ type GossipNode struct {
 	seenMessages  map[string]bool
 	gossipHandler func(msg []byte, sender transport.Conn) bool
 	peerUpHandler func() (send bool, msg []byte)
+	lock          *sync.Mutex
 }
 
 func NewGossipNode(membership plumtree.MembershipProtocol) *GossipNode {
 	gn := &GossipNode{
 		membership:   membership,
 		seenMessages: make(map[string]bool),
+		lock:         &sync.Mutex{},
 	}
 	gn.membership.AddClientMsgHandler(GLOBAL_GOSSIP_MSG_TYPE, gn.onGossipReceived)
 	gn.membership.OnPeerUp(func(peer hyparview.Peer) {
@@ -55,13 +58,17 @@ func (gn *GossipNode) Broadcast(msg []byte) {
 		return
 	}
 	msgId := hashFn.Sum(nil)
+	gn.lock.Lock()
+	defer gn.lock.Unlock()
 	if gn.seenMessages[string(msgId)] {
 		// log.Println("msg already seen:", msg)
 		return
 	}
 	gn.seenMessages[string(msgId)] = true
 	if gn.gossipHandler != nil {
+		gn.lock.Unlock()
 		proceed := gn.gossipHandler(msg, nil)
+		gn.lock.Lock()
 		if !proceed {
 			// log.Println("quit broadcasting signal ...")
 			return
@@ -106,6 +113,8 @@ func (gn *GossipNode) onGossipReceived(msgBytes []byte, from hyparview.Peer) {
 		return
 	}
 	msgId := hashFn.Sum(nil)
+	gn.lock.Lock()
+	defer gn.lock.Unlock()
 	if gn.seenMessages[string(msgId)] {
 		// log.Println("msg already seen:", msgBytes)
 		return
@@ -114,7 +123,9 @@ func (gn *GossipNode) onGossipReceived(msgBytes []byte, from hyparview.Peer) {
 	msg := msgBytes[8:]
 	// log.Println("Received:", msg)
 	if gn.gossipHandler != nil {
+		gn.lock.Unlock()
 		proceed := gn.gossipHandler(msg, from.Conn)
+		gn.lock.Lock()
 		if !proceed {
 			// log.Println("quit broadcasting signal ...")
 			return
