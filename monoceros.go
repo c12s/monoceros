@@ -250,7 +250,7 @@ func (m *Monoceros) initRN() {
 		m.logger.Println("onPeerDown", p.Node.ID)
 		m.RN.removeScoreForPeer(p.Node.ID)
 	})
-	startPeriodic(m.RN.broadcastScore, m.config.ScoreGossipInterval())
+	// startPeriodic(m.RN.broadcastScore, m.config.ScoreGossipInterval())
 	go m.tryPromote(m.RN)
 }
 
@@ -265,7 +265,7 @@ func (m *Monoceros) initRRN() {
 		m.logger.Println("onPeerDown", p.Node.ID)
 		m.RRN.removeScoreForPeer(p.Node.ID)
 	})
-	startPeriodic(m.RRN.broadcastScore, m.config.ScoreGossipInterval())
+	// startPeriodic(m.RRN.broadcastScore, m.config.ScoreGossipInterval())
 	go m.tryPromote(m.RRN)
 	go m.gossipRoot()
 	go m.rejoinRRN()
