@@ -180,10 +180,12 @@ func (m *Monoceros) Start() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	time.Sleep(120 * time.Second)
 	err = m.RN.plumtree.Join(m.config.RNContactID, m.config.RNContactAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
+	time.Sleep(120 * time.Second)
 	m.RN.joined = true
 	if len(m.GN.membership.GetPeers(1)) == 0 {
 		m.synced = true
