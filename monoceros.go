@@ -354,17 +354,17 @@ func (m *Monoceros) triggerAggregation(network *TreeOverlay) {
 	for {
 		select {
 		case <-time.NewTicker(time.Duration(m.config.Aggregation.TAggSec) * time.Second).C:
-			m.lock.Lock()
-			if network.local != nil && !network.highestScoreInNeighborhood() {
-				tree := *network.local
-				m.lock.Unlock()
-				err := network.plumtree.DestroyTree(tree)
-				if err != nil {
-					m.logger.Println(err)
-				}
-				m.lock.Lock()
-			}
-			m.lock.Unlock()
+			// m.lock.Lock()
+			// if network.local != nil && !network.highestScoreInNeighborhood() {
+			// 	tree := *network.local
+			// 	m.lock.Unlock()
+			// 	err := network.plumtree.DestroyTree(tree)
+			// 	if err != nil {
+			// 		m.logger.Println(err)
+			// 	}
+			// 	m.lock.Lock()
+			// }
+			// m.lock.Unlock()
 			if network.local != nil && network.localAggCount > 0 {
 				network.aggregate <- struct{}{}
 			}
@@ -662,6 +662,7 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, tree plumtree.Tree
 	if result.NetworkID == network.ID {
 		// todo: ??
 		network.rank = GetNodeRank(m.config.NodeID, result.RankList)
+		// todo: ovde isto moze da unisti lokalno stablo
 		network.maxRank = int64(len(slices.Collect(maps.Keys(result.RankList))))
 		// m.logger.Println("rank", network.rank)
 		if network.ID == m.RRN.ID {
