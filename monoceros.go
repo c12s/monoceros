@@ -660,7 +660,7 @@ func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMe
 
 // locked by caller
 func (m *Monoceros) onAggregationResult(network *TreeOverlay, tree plumtree.TreeMetadata, result AggregationResult) {
-	m.logger.Println("received aggregation result", result)
+	m.logger.Println("received aggregation result")
 	received := time.Now().UnixNano()
 	// todo: ??
 	if m.latestMetricsTs[result.NetworkID] > result.Timestamp {
@@ -1038,7 +1038,11 @@ func (m *Monoceros) exportResult(ims []IntermediateMetric, tree string, reqTimes
 			continue
 		}
 		defer file.Close()
-		writer := csv.NewWriter(file)
+		writer := writers[filename]
+		if writer == nil {
+			writer = csv.NewWriter(file)
+			writers[filename] = writer
+		}
 		defer writer.Flush()
 		reqTsStr := strconv.Itoa(int(reqTimestamp))
 		rcvTsStr := strconv.Itoa(int(rcvTimestamp))
@@ -1050,6 +1054,8 @@ func (m *Monoceros) exportResult(ims []IntermediateMetric, tree string, reqTimes
 	}
 }
 
+var writers map[string]*csv.Writer = map[string]*csv.Writer{}
+
 func (m *Monoceros) exportMsgCount() {
 	filename := "/var/log/monoceros/results/msg_count.csv"
 	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
@@ -1058,7 +1064,11 @@ func (m *Monoceros) exportMsgCount() {
 		return
 	}
 	defer file.Close()
-	writer := csv.NewWriter(file)
+	writer := writers[filename]
+	if writer == nil {
+		writer = csv.NewWriter(file)
+		writers[filename] = writer
+	}
 	defer writer.Flush()
 	tsStr := strconv.Itoa(int(time.Now().UnixNano()))
 	transport.MessagesSentLock.Lock()
