@@ -203,7 +203,7 @@ func (m *Monoceros) Start() {
 				children, _ := network.plumtree.GetChildren(aar.Tree.Id)
 				// todo: ??
 				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || aar.Timestamp+(3*m.config.Aggregation.TAggSec*1000000000) < time.Now().UnixNano() {
-				// if len(IntersectPeers(children, aar.WaitingFor)) == 0 {
+					// if len(IntersectPeers(children, aar.WaitingFor)) == 0 {
 					// m.logger.Println("should")
 					toRemove = append(toRemove, aar)
 					m.completeAggregationReq(network, aar)
@@ -662,6 +662,15 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, tree plumtree.Tree
 	if result.NetworkID == network.ID {
 		// todo: ??
 		network.rank = GetNodeRank(m.config.NodeID, result.RankList)
+		if network.rank > 1 && network.local != nil {
+			tree := *network.local
+			m.lock.Unlock()
+			err := network.plumtree.DestroyTree(tree)
+			if err != nil {
+				m.logger.Println(err)
+			}
+			m.lock.Lock()
+		}
 		// todo: ovde isto moze da unisti lokalno stablo
 		network.maxRank = int64(len(slices.Collect(maps.Keys(result.RankList))))
 		// m.logger.Println("rank", network.rank)
