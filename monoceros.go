@@ -135,7 +135,7 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		targets: []ScrapeTarget{
 			{
 				Name:    "test_target",
-				Address: "127.0.0.1:9200",
+				Address: strings.Split(rn.ListenAddress(), ":")[0] + ":9200",
 			},
 		},
 		config: config,
