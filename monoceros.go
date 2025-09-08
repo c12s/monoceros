@@ -616,7 +616,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 		Aggregate:  localForAggregation,
 		Cancel:     cancel,
 		Scores:     localScores,
-		Sender: sender,
+		Sender:     sender,
 	}
 	if len(receivers) == 0 || cancel {
 		m.completeAggregationReq(network, aar)
@@ -1012,24 +1012,24 @@ func IntersectPeers(a, b []data.Node) []data.Node {
 }
 
 func GetNodeRank(nodeID string, scores map[string]float64) int64 {
-	// targetScore, exists := scores[nodeID]
-	// if !exists {
-	// 	return -1
-	// }
-	// rank := int64(1)
-	// for id, score := range scores {
-	// 	if id == nodeID {
-	// 		continue
-	// 	}
-	// 	if score > targetScore || (score == targetScore && id > nodeID) {
-	// 		rank++
-	// 	}
-	// }
-	// return rank
-	if nodeID == "r1_node_99" {
-		return 1
+	targetScore, exists := scores[nodeID]
+	if !exists {
+		return -1
 	}
-	return -1
+	rank := int64(1)
+	for id, score := range scores {
+		if id == nodeID {
+			continue
+		}
+		if score > targetScore || (score == targetScore && id > nodeID) {
+			rank++
+		}
+	}
+	return rank
+	// if nodeID == "r1_node_99" {
+	// 	return 1
+	// }
+	// return -1
 }
 
 func (m *Monoceros) exportResult(ims []IntermediateMetric, tree string, reqTimestamp, rcvTimestamp int64) {
