@@ -1036,14 +1036,14 @@ func (m *Monoceros) exportResult(ims []IntermediateMetric, tree string, reqTimes
 		}
 		name += "}"
 		filename := fmt.Sprintf("/var/log/monoceros/results/%s.csv", name)
-		file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-		if err != nil {
-			m.logger.Printf("failed to open/create file: %v", err)
-			continue
-		}
-		defer file.Close()
+		// defer file.Close()
 		writer := writers[filename]
 		if writer == nil {
+			file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+			if err != nil {
+				m.logger.Printf("failed to open/create file: %v", err)
+				continue
+			}
 			writer = csv.NewWriter(file)
 			writers[filename] = writer
 		}
@@ -1051,7 +1051,7 @@ func (m *Monoceros) exportResult(ims []IntermediateMetric, tree string, reqTimes
 		reqTsStr := strconv.Itoa(int(reqTimestamp))
 		rcvTsStr := strconv.Itoa(int(rcvTimestamp))
 		valStr := strconv.FormatFloat(im.Result.ComputeFinal(), 'f', -1, 64)
-		err = writer.Write([]string{tree, reqTsStr, rcvTsStr, valStr})
+		err := writer.Write([]string{tree, reqTsStr, rcvTsStr, valStr})
 		if err != nil {
 			m.logger.Println(err)
 		}
@@ -1062,14 +1062,14 @@ var writers map[string]*csv.Writer = map[string]*csv.Writer{}
 
 func (m *Monoceros) exportMsgCount() {
 	filename := "/var/log/monoceros/results/msg_count.csv"
-	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
-	if err != nil {
-		m.logger.Printf("failed to open/create file: %v", err)
-		return
-	}
-	defer file.Close()
+	// defer file.Close()
 	writer := writers[filename]
 	if writer == nil {
+		file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
+		if err != nil {
+			m.logger.Printf("failed to open/create file: %v", err)
+			return
+		}
 		writer = csv.NewWriter(file)
 		writers[filename] = writer
 	}
@@ -1083,7 +1083,7 @@ func (m *Monoceros) exportMsgCount() {
 	transport.MessagesRcvdLock.Unlock()
 	sentStr := strconv.Itoa(sent)
 	rcvdStr := strconv.Itoa(rcvd)
-	err = writer.Write([]string{tsStr, sentStr, rcvdStr})
+	err := writer.Write([]string{tsStr, sentStr, rcvdStr})
 	if err != nil {
 		m.logger.Println(err)
 	}
