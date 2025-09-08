@@ -297,7 +297,7 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 	// 	// time.Sleep(120 * time.Second)
 	time.Sleep(time.Duration(3*m.config.Aggregation.TAggSec) * time.Second)
 	// }
-	for range time.NewTicker(100 * time.Millisecond).C {
+	for range time.NewTicker(500 * time.Millisecond).C {
 		m.lock.Lock()
 		if !network.joined || network.local != nil {
 			m.lock.Unlock()

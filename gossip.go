@@ -56,7 +56,7 @@ func (gn *GossipNode) clean() {
 		gn.lock.Lock()
 		remove := []string{}
 		for id, t := range gn.seenMessages {
-			if t.time.Add(30*time.Second).Before(time.Now()) {
+			if t.time.Add(10*time.Second).Before(time.Now()) {
 				remove = append(remove, id)
 			}
 		}
