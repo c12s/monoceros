@@ -12,11 +12,15 @@ import (
 	"github.com/c12s/plumtree"
 )
 
+type msgSeen struct {
+	time time.Time
+}
+
 const GLOBAL_GOSSIP_MSG_TYPE data.MessageType = data.UNKNOWN + 1
 
 type GossipNode struct {
 	membership    plumtree.MembershipProtocol
-	seenMessages  map[string]bool
+	seenMessages  map[string]msgSeen
 	gossipHandler func(msg []byte, sender transport.Conn) bool
 	peerUpHandler func() (send bool, msg []byte)
 	lock          *sync.Mutex
@@ -25,7 +29,7 @@ type GossipNode struct {
 func NewGossipNode(membership plumtree.MembershipProtocol) *GossipNode {
 	gn := &GossipNode{
 		membership:   membership,
-		seenMessages: make(map[string]bool),
+		seenMessages: make(map[string]msgSeen),
 		lock:         &sync.Mutex{},
 	}
 	gn.membership.AddClientMsgHandler(GLOBAL_GOSSIP_MSG_TYPE, gn.onGossipReceived)
@@ -46,6 +50,23 @@ func NewGossipNode(membership plumtree.MembershipProtocol) *GossipNode {
 	return gn
 }
 
+func (gn *GossipNode) clean() {
+	for range time.NewTicker(5 * time.Second).C {
+		gn.lock.Lock()
+		remove := []string{}
+		for id, t := range gn.seenMessages {
+			if t.time.Add(30*time.Second).Before(time.Now()) {
+				remove = append(remove, id)
+			}
+		}
+		for _, id := range remove {
+			delete(gn.seenMessages, id)
+		}
+		gn.lock.Unlock()
+
+	}
+}
+
 func (gn *GossipNode) Broadcast(msg []byte) {
 	now := time.Now().Unix()
 	nowBytes := make([]byte, 8)
@@ -60,11 +81,11 @@ func (gn *GossipNode) Broadcast(msg []byte) {
 	msgId := hashFn.Sum(nil)
 	gn.lock.Lock()
 	defer gn.lock.Unlock()
-	if gn.seenMessages[string(msgId)] {
+	if _, ok := gn.seenMessages[string(msgId)]; ok {
 		// log.Println("msg already seen:", msg)
 		return
 	}
-	gn.seenMessages[string(msgId)] = true
+	gn.seenMessages[string(msgId)] = msgSeen{time: time.Now()}
 	if gn.gossipHandler != nil {
 		gn.lock.Unlock()
 		proceed := gn.gossipHandler(msg, nil)
@@ -115,11 +136,11 @@ func (gn *GossipNode) onGossipReceived(msgBytes []byte, from hyparview.Peer) {
 	msgId := hashFn.Sum(nil)
 	gn.lock.Lock()
 	defer gn.lock.Unlock()
-	if gn.seenMessages[string(msgId)] {
+	if _, ok := gn.seenMessages[string(msgId)]; ok {
 		// log.Println("msg already seen:", msgBytes)
 		return
 	}
-	gn.seenMessages[string(msgId)] = true
+	gn.seenMessages[string(msgId)] = msgSeen{time: time.Now()}
 	msg := msgBytes[8:]
 	// log.Println("Received:", msg)
 	if gn.gossipHandler != nil {

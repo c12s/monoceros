@@ -310,7 +310,7 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 		// todo: ??
 		expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec*1000000000) + float64(network.rank-1)/float64(network.maxRank)*float64(m.config.Aggregation.TAggMaxSec*1000000000)
 		now := time.Now().UnixNano()
-		if expectedAggregationTime < float64(now) && network.highestScoreInNeighborhood() {
+		if expectedAggregationTime < float64(now) && network.highestScoreInNeighborhood() && network.rank > 0 {
 			m.promote(network)
 		}
 		m.lock.Unlock()
