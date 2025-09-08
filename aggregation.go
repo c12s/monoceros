@@ -1,15 +1,17 @@
 package monoceros
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"maps"
 	"math"
 	"net/http"
 
+	jsoniter "github.com/json-iterator/go"
 	dto "github.com/prometheus/client_model/go"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type AggregationFunc byte
 
@@ -154,8 +156,8 @@ func (im IntermediateMetric) MarshalJSON() ([]byte, error) {
 
 func (im *IntermediateMetric) UnmarshalJSON(data []byte) error {
 	var aux struct {
-		Metadata MetricMetadata  `json:"metadata"`
-		Result   json.RawMessage `json:"result"`
+		Metadata MetricMetadata      `json:"metadata"`
+		Result   jsoniter.RawMessage `json:"result"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
 		return err

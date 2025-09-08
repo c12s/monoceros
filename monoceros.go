@@ -2,7 +2,6 @@ package monoceros
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"log"
 	"math"
@@ -22,6 +21,8 @@ import (
 	"github.com/c12s/hyparview/transport"
 	"github.com/c12s/plumtree"
 )
+
+// var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 const (
 	REGIONAL_NETWORK       = "RN"

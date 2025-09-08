@@ -1,10 +1,10 @@
 package monoceros
 
 import (
-	"encoding/json"
-
 	"github.com/c12s/hyparview/data"
 )
+
+// var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 const (
 	AGGREGATION_REQ_MSG_TYPE  = "A_REQ"

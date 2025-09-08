@@ -1,13 +1,14 @@
 package monoceros
 
 import (
-	"encoding/json"
 	"maps"
 	"net/http"
 	"slices"
 
 	"github.com/c12s/plumtree"
 )
+
+// var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type State struct {
 	ID                   string
