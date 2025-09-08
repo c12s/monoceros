@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"runtime"
+	"runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
@@ -192,10 +193,18 @@ func (m *Monoceros) Start() {
 	}
 
 	clearActive := func(network *TreeOverlay) {
+		prof := pprof.Lookup("heap")
+		if prof == nil {
+			fmt.Println("no heap profile found")
+		}
 		for range time.NewTicker(time.Second).C {
 			// m.logger.Println("try lock")
 			m.lock.Lock()
 			fmt.Println("Goroutines:", runtime.NumGoroutine())
+			if prof != nil {
+				// Print top 10 entries in the same format as `go tool pprof top`
+				prof.WriteTo(m.logger.Writer(), 1)
+			}
 			toRemove := make([]*ActiveAggregationReq, 0)
 			for _, aar := range network.activeRequests {
 				if aar == nil {

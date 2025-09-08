@@ -7,11 +7,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
-
-	_ "net/http/pprof"
 
 	"github.com/c12s/hyparview/data"
 	"github.com/c12s/hyparview/hyparview"
@@ -174,10 +171,6 @@ func main() {
 		if err := server.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 			log.Fatalf("HTTP server error: %v", err)
 		}
-	}()
-
-	go func() {
-		log.Println(http.ListenAndServe(strings.Split(mcConfig.HTTPServerAddr, ":")[0]+":6060", nil))
 	}()
 
 	quit := make(chan os.Signal, 1)
