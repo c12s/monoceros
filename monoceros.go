@@ -295,7 +295,7 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 	// if !strings.HasSuffix(m.config.NodeID, "9") {
 	// 	return
 	// 	// time.Sleep(120 * time.Second)
-	// 	// time.Sleep(time.Duration(m.config.Aggregation.TAggSec) * time.Second)
+	time.Sleep(time.Duration(3*m.config.Aggregation.TAggSec) * time.Second)
 	// }
 	for range time.NewTicker(100 * time.Millisecond).C {
 		m.lock.Lock()
