@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -194,6 +195,7 @@ func (m *Monoceros) Start() {
 		for range time.NewTicker(time.Second).C {
 			// m.logger.Println("try lock")
 			m.lock.Lock()
+			fmt.Println("Goroutines:", runtime.NumGoroutine())
 			toRemove := make([]*ActiveAggregationReq, 0)
 			for _, aar := range network.activeRequests {
 				if aar == nil {
