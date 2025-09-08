@@ -202,8 +202,8 @@ func (m *Monoceros) Start() {
 				// m.logger.Println("should clean up active request", *aar)
 				children, _ := network.plumtree.GetChildren(aar.Tree.Id)
 				// todo: ??
-				// if len(IntersectPeers(children, aar.WaitingFor)) == 0 || aar.Timestamp+(3*m.config.Aggregation.TAggSec*1000000000) < time.Now().UnixNano() {
-				if len(IntersectPeers(children, aar.WaitingFor)) == 0 {
+				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || aar.Timestamp+(3*m.config.Aggregation.TAggSec*1000000000) < time.Now().UnixNano() {
+				// if len(IntersectPeers(children, aar.WaitingFor)) == 0 {
 					// m.logger.Println("should")
 					toRemove = append(toRemove, aar)
 					m.completeAggregationReq(network, aar)
@@ -354,17 +354,17 @@ func (m *Monoceros) triggerAggregation(network *TreeOverlay) {
 	for {
 		select {
 		case <-time.NewTicker(time.Duration(m.config.Aggregation.TAggSec) * time.Second).C:
-			// m.lock.Lock()
-			// if network.local != nil && !network.highestScoreInNeighborhood() {
-			// 	tree := *network.local
-			// 	m.lock.Unlock()
-			// 	err := network.plumtree.DestroyTree(tree)
-			// 	if err != nil {
-			// 		m.logger.Println(err)
-			// 	}
-			// 	m.lock.Lock()
-			// }
-			// m.lock.Unlock()
+			m.lock.Lock()
+			if network.local != nil && !network.highestScoreInNeighborhood() {
+				tree := *network.local
+				m.lock.Unlock()
+				err := network.plumtree.DestroyTree(tree)
+				if err != nil {
+					m.logger.Println(err)
+				}
+				m.lock.Lock()
+			}
+			m.lock.Unlock()
 			if network.local != nil && network.localAggCount > 0 {
 				network.aggregate <- struct{}{}
 			}
