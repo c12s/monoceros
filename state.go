@@ -8,7 +8,7 @@ import (
 	"github.com/c12s/plumtree"
 )
 
-// var json = jsoniter.ConfigCompatibleWithStandardLibrary
+// var json = jsoniter.ConfigFastest
 
 type State struct {
 	ID                   string

@@ -4,7 +4,7 @@ import (
 	"github.com/c12s/hyparview/data"
 )
 
-// var json = jsoniter.ConfigCompatibleWithStandardLibrary
+// var json = jsoniter.ConfigFastest
 
 const (
 	AGGREGATION_REQ_MSG_TYPE  = "A_REQ"

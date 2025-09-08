@@ -11,7 +11,7 @@ import (
 	dto "github.com/prometheus/client_model/go"
 )
 
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
+var json = jsoniter.ConfigFastest
 
 type AggregationFunc byte
 
