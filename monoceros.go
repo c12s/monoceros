@@ -596,7 +596,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 	// todo: ?? da li azurirati samo ako nije cancel == true
 	network.lastAggregationTime = int64(math.Max(float64(time.Now().UnixNano()), float64(network.lastAggregationTime)))
 	localForAggregation := network.getLocalMetrics()
-	// localScores := map[string]float64{m.config.NodeID: float64(Score())}
+	localScores := map[string]float64{m.config.NodeID: float64(Score())}
 	receivers, err := network.plumtree.GetChildren(tree.Id)
 	if err != nil {
 		m.logger.Println("error while fetching tree children", tree, err)
@@ -615,7 +615,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 		WaitingFor: receivers,
 		Aggregate:  localForAggregation,
 		Cancel:     cancel,
-		// Scores:     localScores,
+		Scores:     localScores,
 		Sender: sender,
 	}
 	if len(receivers) == 0 || cancel {
@@ -724,7 +724,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, req *ActiveAggr
 			Timestamp: req.Timestamp,
 			Aggregate: req.Aggregate,
 			Cancel:    req.Cancel,
-			// Scores:    req.Scores,
+			Scores:    req.Scores,
 		}
 		respType = AGGREGATION_RESP_MSG_TYPE
 		respBytes, err := Serialize(resp)
