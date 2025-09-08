@@ -148,7 +148,7 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		AdditionalMetricLabels: map[string]string{"level": "region", "regionID": config.Region},
 		rank:                   1,
 		maxRank:                1,
-		quit:                   make(chan struct{}),
+		quit:                   make(chan struct{}, 1),
 		knownScores:            make(map[string]ScoreMsg),
 		lock:                   m.lock,
 		logger:                 m.logger,
@@ -162,7 +162,7 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		AdditionalMetricLabels: map[string]string{"level": "global"},
 		rank:                   1,
 		maxRank:                1,
-		quit:                   make(chan struct{}),
+		quit:                   make(chan struct{}, 1),
 		knownScores:            make(map[string]ScoreMsg),
 		lock:                   m.lock,
 		logger:                 m.logger,
@@ -282,9 +282,9 @@ func (m *Monoceros) cleanUpTree(network *TreeOverlay, tree plumtree.TreeMetadata
 	if network.local != nil && tree.Id == network.local.Id {
 		network.local = nil
 		network.localAggCount = 0
-		go func() {
-			network.quit <- struct{}{}
-		}()
+		// go func() {
+		network.quit <- struct{}{}
+		// }()
 		// m.logger.Println("local tree removed")
 	}
 }
