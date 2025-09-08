@@ -47,6 +47,7 @@ func NewGossipNode(membership plumtree.MembershipProtocol) *GossipNode {
 			// log.Println("error while sending msg to peer in global network", err)
 		}
 	})
+	go gn.clean()
 	return gn
 }
 
