@@ -328,6 +328,7 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 		now := time.Now().UnixNano()
 		highestScore := network.highestScoreInNeighborhood()
 		m.logger.Println(now)
+		m.logger.Println(network.lastAggregationTime)
 		m.logger.Println(expectedAggregationTime)
 		m.logger.Println(network.rank)
 		m.logger.Println(network.maxRank)
