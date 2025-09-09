@@ -592,7 +592,6 @@ func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
 func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMetadata, req AggregationReq, sender transport.Conn) bool {
 	m.logger.Println("received aggregation request", tree.Id, "msg", req)
 	// todo: ?? da li azurirati samo ako nije cancel == true
-	network.lastAggregationTime = int64(math.Max(float64(time.Now().UnixNano()), float64(network.lastAggregationTime)))
 	localForAggregation := network.getLocalMetrics()
 	localScores := map[string]float64{m.config.NodeID: float64(Score())}
 	receivers, err := network.plumtree.GetChildren(tree.Id)
@@ -606,6 +605,8 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 		return r != nil && r.Tree.Score > tree.Score
 	})) && network.plumtree.HasParent(tree.Id) {
 		cancel = true
+	} else {
+		network.lastAggregationTime = int64(math.Max(float64(time.Now().UnixNano()), float64(network.lastAggregationTime)))
 	}
 	aar := &ActiveAggregationReq{
 		Tree:       tree,
@@ -626,7 +627,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 
 // locked by caller
 func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMetadata, resp AggregationResp, sender data.Node) {
-	m.logger.Println("received aggregation response", tree.Id, "from", sender.ID, "msg", resp)
+	m.logger.Println("received aggregation response", tree.Id, "from", sender.ID, "msg")
 	index := slices.IndexFunc(network.activeRequests, func(r *ActiveAggregationReq) bool {
 		return r.Tree.Id == tree.Id && r.Timestamp == resp.Timestamp
 	})
