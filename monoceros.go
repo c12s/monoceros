@@ -240,6 +240,10 @@ func (m *Monoceros) Start() {
 	go func() {
 		for range time.NewTicker(time.Second).C {
 			m.exportMsgCount()
+			rn := m.latestIM[m.RN.ID]
+			rrn := m.latestIM[m.RRN.ID]
+			m.exportResult(rn, "", 0, time.Now().UnixNano())
+			m.exportResult(rrn, "", 0, time.Now().UnixNano())
 		}
 	}()
 }
@@ -677,7 +681,7 @@ func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMe
 // locked by caller
 func (m *Monoceros) onAggregationResult(network *TreeOverlay, tree plumtree.TreeMetadata, result AggregationResult) {
 	m.logger.Println("received aggregation result")
-	received := time.Now().UnixNano()
+	// received := time.Now().UnixNano()
 	// todo: ??
 	if m.latestMetricsTs[result.NetworkID] > result.Timestamp {
 		m.logger.Println("local ts higher than received ts", m.latestMetricsTs, result.Timestamp)
@@ -686,7 +690,7 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, tree plumtree.Tree
 	m.latestMetrics[result.NetworkID] = result.Aggregate
 	m.latestMetricsTs[result.NetworkID] = result.Timestamp
 	m.latestIM[result.NetworkID] = result.IMs
-	m.exportResult(result.IMs, tree.NodeID(), result.Timestamp, received)
+	// m.exportResult(result.IMs, tree.NodeID(), result.Timestamp, received)
 	if result.NetworkID == network.ID {
 		// todo: ??
 		network.rank = GetNodeRank(m.config.NodeID, result.RankList)
