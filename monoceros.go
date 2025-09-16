@@ -63,7 +63,7 @@ type Monoceros struct {
 	GN              *GossipNode
 	RN              *TreeOverlay
 	RRN             *TreeOverlay
-	Roots           map[string]RootInfo
+	Roots           map[string][]RootInfo
 	rules           []AggregationRule
 	latestMetrics   map[string]string
 	latestIM        map[string][]IntermediateMetric
@@ -78,7 +78,7 @@ type Monoceros struct {
 func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, logger *log.Logger) *Monoceros {
 	m := &Monoceros{
 		GN:    gn,
-		Roots: make(map[string]RootInfo),
+		Roots: make(map[string][]RootInfo),
 		rules: []AggregationRule{
 			{
 				InputSelector: MetricMetadata{
@@ -284,7 +284,7 @@ func (m *Monoceros) initRRN() {
 	})
 	startPeriodic(m.RRN.broadcastScore, m.config.ScoreGossipInterval())
 	go m.tryPromote(m.RRN)
-	go m.gossipRoot()
+	// go m.gossipRoot()
 	go m.rejoinRRN()
 }
 
@@ -516,10 +516,22 @@ func (m *Monoceros) onGlobalMsg(msgBytes []byte, from transport.Conn) bool {
 			m.logger.Println("error while unmarshalling", msg, err)
 			return false
 		}
-		root, ok := m.Roots[msg.Region]
-		if !ok || (root.Time+(2*m.config.Aggregation.TAggSec*1000000000) < time.Now().UnixNano() && msg.Time > root.Time) {
-			m.Roots[msg.Region] = msg
+		roots, ok := m.Roots[msg.Region]
+		if !ok {
+			roots = make([]RootInfo, 0)
 		}
+		if msg.Joined {
+			if !slices.ContainsFunc(roots, func(r RootInfo) bool {
+				return r.NodeInfo.ID == msg.NodeInfo.ID
+			}) {
+				roots = append(roots, msg)
+			}
+		} else {
+			roots = slices.DeleteFunc(roots, func(r RootInfo) bool {
+				return r.NodeInfo.ID == msg.NodeInfo.ID
+			})
+		}
+		m.Roots[msg.Region] = roots
 		return true
 	} else if msgType == SYNC_REQ_MSG_TYPE {
 		m.logger.Println("received sync req")
@@ -801,33 +813,33 @@ func (m *Monoceros) syncState() (bool, []byte) {
 	return true, []byte{SYNC_REQ_MSG_TYPE}
 }
 
-func (m *Monoceros) gossipRoot() {
-	for range time.NewTicker(time.Duration(m.config.Aggregation.TAggSec) * time.Second).C {
-		m.lock.Lock()
-		if !m.RRN.joined {
-			m.lock.Unlock()
-			continue
-		}
-		gossip := RootInfo{
-			NodeInfo: data.Node{
-				ID:            m.config.NodeID,
-				ListenAddress: m.RRN.plumtree.ListenAddress(),
-			},
-			Region: m.config.Region,
-			Time:   time.Now().UnixNano(),
-		}
-		gossipBytes, err := json.Marshal(gossip)
-		if err != nil {
-			m.lock.Unlock()
-			m.logger.Println(err)
-			continue
-		}
-		gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
-		m.logger.Println("sending rrn update", gossipBytes)
-		m.lock.Unlock()
-		m.GN.Broadcast(gossipBytes)
-	}
-}
+// func (m *Monoceros) gossipRoot() {
+// 	for range time.NewTicker(time.Duration(m.config.Aggregation.TAggSec) * time.Second).C {
+// 		m.lock.Lock()
+// 		if !m.RRN.joined {
+// 			m.lock.Unlock()
+// 			continue
+// 		}
+// 		gossip := RootInfo{
+// 			NodeInfo: data.Node{
+// 				ID:            m.config.NodeID,
+// 				ListenAddress: m.RRN.plumtree.ListenAddress(),
+// 			},
+// 			Region: m.config.Region,
+// 			Time:   time.Now().UnixNano(),
+// 		}
+// 		gossipBytes, err := json.Marshal(gossip)
+// 		if err != nil {
+// 			m.lock.Unlock()
+// 			m.logger.Println(err)
+// 			continue
+// 		}
+// 		gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
+// 		m.logger.Println("sending rrn update", gossipBytes)
+// 		m.lock.Unlock()
+// 		m.GN.Broadcast(gossipBytes)
+// 	}
+// }
 
 func (m *Monoceros) rejoinRRN() {
 	for range time.NewTicker(time.Duration(m.config.Aggregation.TAggSec) * time.Second).C {
@@ -876,18 +888,23 @@ func (m *Monoceros) rejoinRRN() {
 // locked by caller
 func (m *Monoceros) contactRRNNode() {
 	contactedPeer := false
-	for _, root := range m.Roots {
-		if root.Region == m.config.Region {
+	for region, roots := range m.Roots {
+		if region == m.config.Region {
 			// m.logger.Println("same region, skip")
 			continue
 		}
-		err := m.RRN.plumtree.Join(root.NodeInfo.ID, root.NodeInfo.ListenAddress)
-		if err != nil {
-			m.logger.Println("error while joining rrn", err)
-			continue
+		for _, root := range roots {
+			err := m.RRN.plumtree.Join(root.NodeInfo.ID, root.NodeInfo.ListenAddress)
+			if err != nil {
+				m.logger.Println("error while joining rrn", err)
+				continue
+			}
+			contactedPeer = true
+			break
 		}
-		contactedPeer = true
-		break
+		if contactedPeer {
+			break
+		}
 	}
 	if !contactedPeer {
 		err := m.RRN.plumtree.Join(m.config.NodeID, m.RRN.plumtree.ListenAddress())
@@ -933,6 +950,26 @@ func (m *Monoceros) joinRRN(tree plumtree.TreeMetadata) {
 	m.logger.Println("still join rrn??")
 	m.contactRRNNode()
 	m.RRN.joined = true
+
+	gossip := RootInfo{
+		NodeInfo: data.Node{
+			ID:            m.config.NodeID,
+			ListenAddress: m.RRN.plumtree.ListenAddress(),
+		},
+		Region: m.config.Region,
+		Time:   time.Now().UnixNano(),
+		Joined: true,
+	}
+	gossipBytes, err := json.Marshal(gossip)
+	if err != nil {
+		m.logger.Println(err)
+		return
+	}
+	gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
+	m.logger.Println("sending rrn update", gossipBytes)
+	m.lock.Unlock()
+	m.GN.Broadcast(gossipBytes)
+	m.lock.Lock()
 }
 
 // locked
@@ -962,6 +999,26 @@ func (m *Monoceros) leaveRRN(tree plumtree.TreeMetadata) {
 	m.RRN.plumtree.Leave()
 	m.lock.Lock()
 	m.logger.Println("prosao leave")
+
+	gossip := RootInfo{
+		NodeInfo: data.Node{
+			ID:            m.config.NodeID,
+			ListenAddress: m.RRN.plumtree.ListenAddress(),
+		},
+		Region: m.config.Region,
+		Time:   time.Now().UnixNano(),
+		Joined: false,
+	}
+	gossipBytes, err := json.Marshal(gossip)
+	if err != nil {
+		m.logger.Println(err)
+		return
+	}
+	gossipBytes = append([]byte{RRUPDATE_MSG_TYPE}, gossipBytes...)
+	m.logger.Println("sending rrn update", gossipBytes)
+	m.lock.Unlock()
+	m.GN.Broadcast(gossipBytes)
+	m.lock.Lock()
 	// gossip := RRUpdate{
 	// 	Joined: false,
 	// 	NodeInfo: data.Node{

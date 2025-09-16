@@ -52,10 +52,11 @@ type RootInfo struct {
 	NodeInfo data.Node
 	Region   string
 	Time     int64
+	Joined   bool
 }
 
 type SyncStateResp struct {
-	RegionalRoots map[string]RootInfo
+	RegionalRoots map[string][]RootInfo
 	Rules         []AggregationRule
 }
 

@@ -17,7 +17,7 @@ type State struct {
 	RegionalNetwork      any
 	RegionalRootsNetwork any
 	Synced               bool
-	Roots                map[string]RootInfo
+	Roots                map[string][]RootInfo
 	LatestMetrics        map[string]string
 	LatestMetricsTs      map[string]int64
 }
