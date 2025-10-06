@@ -7,8 +7,8 @@ import (
 	"log"
 	"math"
 	"os"
-	"runtime"
-	"runtime/pprof"
+	// "runtime"
+	// "runtime/pprof"
 	"slices"
 	"strconv"
 	"strings"
@@ -35,17 +35,17 @@ type ActiveAggregationReq struct {
 	Timestamp  int64
 	WaitingFor []data.Node
 	Aggregate  []IntermediateMetric
-	Scores     map[string]float64
-	Cancel     bool
-	Sender     transport.Conn
+	// Scores     map[string]float64
+	Cancel bool
+	Sender transport.Conn
 }
 
 type TreeOverlay struct {
-	ID                     string
-	plumtree               *plumtree.Plumtree
-	lastAggregationTime    int64
-	rank                   int64
-	maxRank                int64
+	ID                  string
+	plumtree            *plumtree.Plumtree
+	lastAggregationTime int64
+	// rank                   int64
+	// maxRank                int64
 	aggregate              chan struct{}
 	local                  *plumtree.TreeMetadata
 	localAggCount          int64
@@ -54,9 +54,15 @@ type TreeOverlay struct {
 	getLocalMetrics        func() []IntermediateMetric
 	AdditionalMetricLabels map[string]string
 	quit                   chan struct{}
-	knownScores            map[string]ScoreMsg
-	lock                   *sync.Mutex
-	logger                 *log.Logger
+	// knownScores            map[string]ScoreMsg
+	lock            *sync.Mutex
+	logger          *log.Logger
+	Max             []NodeInfo
+	Value           int
+	K               int
+	TTL             int
+	SelfFirstRounds int
+	TAggSec         int
 }
 
 type Monoceros struct {
@@ -150,12 +156,23 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		activeRequests:         make([]*ActiveAggregationReq, 0),
 		getLocalMetrics:        m.getLatestForNode,
 		AdditionalMetricLabels: map[string]string{"level": "region", "regionID": config.Region},
-		rank:                   1,
-		maxRank:                1,
-		quit:                   make(chan struct{}, 1),
-		knownScores:            make(map[string]ScoreMsg),
-		lock:                   m.lock,
-		logger:                 m.logger,
+		// rank:                   1,
+		// maxRank:                1,
+		quit: make(chan struct{}, 1),
+		// knownScores:            make(map[string]ScoreMsg),
+		lock:   m.lock,
+		logger: m.logger,
+		Max: []NodeInfo{
+			{
+				NodeID: m.config.NodeID,
+				Val:    float64(m.Score()),
+				TTL:    m.config.Aggregation.TTL,
+			},
+		},
+		Value:   int(m.Score()),
+		K:       config.Aggregation.K,
+		TTL:     config.Aggregation.TTL,
+		TAggSec: int(config.Aggregation.TAggSec),
 	}
 	m.RRN = &TreeOverlay{
 		ID:                     REGIONAL_ROOTS_NETWORK,
@@ -164,15 +181,26 @@ func NewMonoceros(rn, rrn *plumtree.Plumtree, gn *GossipNode, config Config, log
 		activeRequests:         make([]*ActiveAggregationReq, 0),
 		getLocalMetrics:        m.getLatestForRegion,
 		AdditionalMetricLabels: map[string]string{"level": "global"},
-		rank:                   1,
-		maxRank:                1,
-		quit:                   make(chan struct{}, 1),
-		knownScores:            make(map[string]ScoreMsg),
-		lock:                   m.lock,
-		logger:                 m.logger,
+		// rank:                   1,
+		// maxRank:                1,
+		quit: make(chan struct{}, 1),
+		// knownScores:            make(map[string]ScoreMsg),
+		lock:   m.lock,
+		logger: m.logger,
+		Max: []NodeInfo{
+			{
+				NodeID: m.config.NodeID,
+				Val:    float64(m.Score()),
+				TTL:    m.config.Aggregation.TTL,
+			},
+		},
+		Value:   int(m.Score()),
+		K:       config.Aggregation.K,
+		TTL:     config.Aggregation.TTL,
+		TAggSec: int(config.Aggregation.TAggSec),
 	}
-	rn.Protocol.AddClientMsgHandler(SCORE_MSG_TYPE, m.RN.onScoreMsg)
-	rrn.Protocol.AddClientMsgHandler(SCORE_MSG_TYPE, m.RRN.onScoreMsg)
+	rn.Protocol.AddClientMsgHandler(TOP_K_MSG_TYPE, m.RN.onTopKMsg)
+	rrn.Protocol.AddClientMsgHandler(TOP_K_MSG_TYPE, m.RRN.onTopKMsg)
 	return m
 }
 
@@ -194,18 +222,18 @@ func (m *Monoceros) Start() {
 		m.init()
 	}
 
-	go func() {
-		prof := pprof.Lookup("heap")
-		if prof == nil {
-			fmt.Println("no heap profile found")
-		}
-		for range time.NewTicker(30 * time.Second).C {
-			fmt.Println("Goroutines:", runtime.NumGoroutine())
-			if prof != nil {
-				prof.WriteTo(m.logger.Writer(), 1)
-			}
-		}
-	}()
+	// go func() {
+	// 	prof := pprof.Lookup("heap")
+	// 	if prof == nil {
+	// 		fmt.Println("no heap profile found")
+	// 	}
+	// 	for range time.NewTicker(30 * time.Second).C {
+	// 		fmt.Println("Goroutines:", runtime.NumGoroutine())
+	// 		if prof != nil {
+	// 			prof.WriteTo(m.logger.Writer(), 1)
+	// 		}
+	// 	}
+	// }()
 
 	clearActive := func(network *TreeOverlay) {
 		for range time.NewTicker(time.Second).C {
@@ -267,11 +295,11 @@ func (m *Monoceros) initRN() {
 	m.RN.plumtree.OnTreeConstructed(m.joinRRN)
 	m.RN.plumtree.OnGossip(m.onGossipMsg)
 	m.RN.plumtree.OnDirect(m.onDirectMsg)
-	m.RN.plumtree.OnPeerDown(func(p hyparview.Peer) {
-		m.logger.Println("onPeerDown", p.Node.ID)
-		m.RN.removeScoreForPeer(p.Node.ID)
-	})
-	startPeriodic(m.RN.broadcastScore, m.config.ScoreGossipInterval())
+	// m.RN.plumtree.OnPeerDown(func(p hyparview.Peer) {
+	// 	m.logger.Println("onPeerDown", p.Node.ID)
+	// 	m.RN.removeScoreForPeer(p.Node.ID)
+	// })
+	startPeriodic(m.RN.gossipTopK, time.Duration(m.config.Aggregation.TAggSec)*time.Second)
 	go m.tryPromote(m.RN)
 }
 
@@ -282,11 +310,11 @@ func (m *Monoceros) initRRN() {
 	})
 	m.RRN.plumtree.OnGossip(m.onGossipMsg)
 	m.RRN.plumtree.OnDirect(m.onDirectMsg)
-	m.RRN.plumtree.OnPeerDown(func(p hyparview.Peer) {
-		m.logger.Println("onPeerDown", p.Node.ID)
-		m.RRN.removeScoreForPeer(p.Node.ID)
-	})
-	startPeriodic(m.RRN.broadcastScore, m.config.ScoreGossipInterval())
+	// m.RRN.plumtree.OnPeerDown(func(p hyparview.Peer) {
+	// 	m.logger.Println("onPeerDown", p.Node.ID)
+	// 	m.RRN.removeScoreForPeer(p.Node.ID)
+	// })
+	startPeriodic(m.RRN.gossipTopK, time.Duration(m.config.Aggregation.TAggSec)*time.Second)
 	go m.tryPromote(m.RRN)
 	// go m.gossipRoot()
 	go m.rejoinRRN()
@@ -319,25 +347,25 @@ func (m *Monoceros) tryPromote(network *TreeOverlay) {
 	// }
 	for range time.NewTicker(500 * time.Millisecond).C {
 		m.lock.Lock()
-		if !network.joined || network.local != nil {
-			m.lock.Unlock()
-			continue
-		}
+		// if !network.joined || network.local != nil {
+		// 	m.lock.Unlock()
+		// 	continue
+		// }
 		// peersNum := network.plumtree.GetPeersNum()
 		// problem: ako sporo konvergira kada se veliki broj pokrnee odjednom
 		// onda se moze desiti da, nakon sto unisti svoje stablo, opet promovise sebe
 		// iako ne bi trebao, broj poruka ostaje zauvek preveliki
 		// todo: ??
-		expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec*1000000000) + float64(network.rank-1)/float64(network.maxRank)*float64(m.config.Aggregation.TAggMaxSec*1000000000)
-		now := time.Now().UnixNano()
-		highestScore := network.highestScoreInNeighborhood()
-		m.logger.Println(now)
-		m.logger.Println(network.lastAggregationTime)
-		m.logger.Println(expectedAggregationTime)
-		m.logger.Println(network.rank)
-		m.logger.Println(network.maxRank)
-		m.logger.Println(highestScore)
-		if expectedAggregationTime < float64(now) && highestScore {
+		// expectedAggregationTime := float64(network.lastAggregationTime) + float64(m.config.Aggregation.TAggSec*1000000000) + float64(network.rank-1)/float64(network.maxRank)*float64(m.config.Aggregation.TAggMaxSec*1000000000)
+		// now := time.Now().UnixNano()
+		// highestScore := network.highestScoreInNeighborhood()
+		// m.logger.Println(now)
+		// m.logger.Println(network.lastAggregationTime)
+		// m.logger.Println(expectedAggregationTime)
+		// m.logger.Println(network.rank)
+		// m.logger.Println(network.maxRank)
+		// m.logger.Println(highestScore)
+		if network.shouldPromote() {
 			m.logger.Println("SHOULD PROMOTE", network.ID)
 			m.promote(network)
 		}
@@ -350,7 +378,7 @@ func (m *Monoceros) promote(network *TreeOverlay) {
 	m.logger.Println("promoting", network.ID)
 	tree := plumtree.TreeMetadata{
 		Id:    fmt.Sprintf("%s_%s", network.ID, m.config.NodeID),
-		Score: Score(),
+		Score: int(m.Score()),
 	}
 	network.local = &tree
 	m.lock.Unlock()
@@ -610,7 +638,7 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 	m.logger.Println("received aggregation request", tree.Id, "msg", req)
 	// todo: ?? da li azurirati samo ako nije cancel == true
 	localForAggregation := network.getLocalMetrics()
-	localScores := map[string]float64{m.config.NodeID: float64(Score())}
+	// localScores := map[string]float64{m.config.NodeID: float64(m.Score())}
 	receivers, err := network.plumtree.GetChildren(tree.Id)
 	if err != nil {
 		m.logger.Println("error while fetching tree children", tree, err)
@@ -631,8 +659,8 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 		WaitingFor: receivers,
 		Aggregate:  localForAggregation,
 		Cancel:     cancel,
-		Scores:     localScores,
-		Sender:     sender,
+		// Scores:     localScores,
+		Sender: sender,
 	}
 	if len(receivers) == 0 || cancel {
 		m.completeAggregationReq(network, aar)
@@ -665,9 +693,9 @@ func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMe
 	req.Aggregate = combineAggregates(req.Aggregate, resp.Aggregate, m.rules)
 	req.Cancel = req.Cancel || resp.Cancel
 	// m.logger.Println("combined", req.Aggregate)
-	for id, score := range resp.Scores {
-		req.Scores[id] = score
-	}
+	// for id, score := range resp.Scores {
+	// 	req.Scores[id] = score
+	// }
 	req.WaitingFor = slices.Delete(req.WaitingFor, senderIndex, senderIndex+1)
 	children, _ := network.plumtree.GetChildren(tree.Id)
 	if len(IntersectPeers(children, req.WaitingFor)) == 0 {
@@ -693,7 +721,7 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, tree plumtree.Tree
 	// m.exportResult(result.IMs, tree.NodeID(), result.Timestamp, received)
 	if result.NetworkID == network.ID {
 		// todo: ??
-		network.rank = GetNodeRank(m.config.NodeID, result.RankList)
+		// network.rank = GetNodeRank(m.config.NodeID, result.RankList)
 		// if network.rank > 1 && network.local != nil {
 		// 	tree := *network.local
 		// 	m.lock.Unlock()
@@ -704,7 +732,7 @@ func (m *Monoceros) onAggregationResult(network *TreeOverlay, tree plumtree.Tree
 		// 	m.lock.Lock()
 		// }
 		// todo: ovde isto moze da unisti lokalno stablo
-		network.maxRank = int64(len(slices.Collect(maps.Keys(result.RankList))))
+		// network.maxRank = int64(len(slices.Collect(maps.Keys(result.RankList))))
 		// m.logger.Println("rank", network.rank)
 		if network.ID == m.RRN.ID {
 			if m.RN.local == nil {
@@ -740,7 +768,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, req *ActiveAggr
 			Timestamp: req.Timestamp,
 			Aggregate: req.Aggregate,
 			Cancel:    req.Cancel,
-			Scores:    req.Scores,
+			// Scores:    req.Scores,
 		}
 		respType = AGGREGATION_RESP_MSG_TYPE
 		respBytes, err := Serialize(resp)
@@ -782,7 +810,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, req *ActiveAggr
 				Timestamp: req.Timestamp,
 				Aggregate: om,
 				IMs:       req.Aggregate,
-				RankList:  req.Scores,
+				// RankList:  req.Scores,
 			})
 			if err != nil {
 				m.logger.Println("error marshalling rank list", err)

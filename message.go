@@ -20,7 +20,7 @@ type AggregationReq struct {
 type AggregationResp struct {
 	Timestamp int64
 	Aggregate []IntermediateMetric
-	Scores    map[string]float64
+	// Scores    map[string]float64
 	Cancel    bool
 }
 
@@ -31,7 +31,7 @@ type AggregationResp struct {
 type AggregationResult struct {
 	NetworkID string
 	Timestamp int64
-	RankList  map[string]float64
+	// RankList  map[string]float64
 	Aggregate string
 	IMs       []IntermediateMetric
 }
