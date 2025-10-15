@@ -1,6 +1,7 @@
 package monoceros
 
 import (
+	"math/rand/v2"
 	"slices"
 	"sort"
 	"strconv"
@@ -144,6 +145,9 @@ func (n *TreeOverlay) gossipTopK() {
 		Payload: msg,
 	}
 	for _, peer := range n.plumtree.GetPeers() {
+		if rand.Float64() < 0.5 {
+			continue
+		}
 		err := peer.Conn.Send(hvMsg)
 		if err != nil {
 			n.logger.Println(err)
