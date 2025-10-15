@@ -167,12 +167,13 @@ func (n *TreeOverlay) shouldPromote() bool {
 	idx := slices.IndexFunc(n.Max, func(ni NodeInfo) bool {
 		return ni.NodeID == n.plumtree.Protocol.Self().ID
 	})
-	if idx == 0 && n.SelfFirstRounds >= n.TTL {
+	stableInList := n.SelfFirstRounds >= n.TTL
+	if idx == 0 && stableInList {
 		return true
 	}
 	// todo: adaptive
 	delayMS := 500
 	timeForReq := n.lastAggregationTime+int64(n.TAggSec)*1000000000+int64(idx)*int64(delayMS)*1000000 < time.Now().UnixNano()
 	backoffExpired := n.lastCancelled+int64(delayMS)*1000000 < time.Now().UnixNano()
-	return timeForReq && backoffExpired
+	return stableInList && timeForReq && backoffExpired
 }
