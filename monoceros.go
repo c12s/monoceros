@@ -7,6 +7,7 @@ import (
 	"log"
 	"math"
 	"os"
+
 	// "runtime"
 	// "runtime/pprof"
 	"slices"
@@ -44,6 +45,7 @@ type TreeOverlay struct {
 	ID                  string
 	plumtree            *plumtree.Plumtree
 	lastAggregationTime int64
+	lastCancelled       int64
 	// rank                   int64
 	// maxRank                int64
 	aggregate              chan struct{}
@@ -788,6 +790,7 @@ func (m *Monoceros) completeAggregationReq(network *TreeOverlay, req *ActiveAggr
 		if req.Cancel {
 			// m.logger.Println("should destroy local tree")
 			tree := *network.local
+			network.lastCancelled = time.Now().UnixNano()
 			m.lock.Unlock()
 			// todo: nil pointer
 			err := network.plumtree.DestroyTree(tree)

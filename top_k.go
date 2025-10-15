@@ -120,11 +120,13 @@ func (n *TreeOverlay) gossipTopK() {
 			Val:    float64(n.Value),
 			TTL:    n.TTL,
 		})
+		found = true
 	}
 	sort.Slice(n.Max, func(i, j int) bool {
 		return n.Max[i].Val > n.Max[j].Val
 	})
-	if n.Max[0].NodeID == n.plumtree.Protocol.Self().ID {
+	// if n.Max[0].NodeID == n.plumtree.Protocol.Self().ID {
+	if found {
 		n.SelfFirstRounds++
 	} else {
 		n.SelfFirstRounds = 0
@@ -152,6 +154,7 @@ func (n *TreeOverlay) gossipTopK() {
 	n.logger.Printf("[%s] sent message: %+v\n", n.plumtree.Protocol.Self().ID, msg)
 }
 
+// locked by caller
 func (n *TreeOverlay) shouldPromote() bool {
 	if !n.joined || n.local != nil {
 		return false
@@ -161,13 +164,15 @@ func (n *TreeOverlay) shouldPromote() bool {
 	}) {
 		return false
 	}
-	if n.SelfFirstRounds >= n.TTL {
-		return true
-	}
 	idx := slices.IndexFunc(n.Max, func(ni NodeInfo) bool {
 		return ni.NodeID == n.plumtree.Protocol.Self().ID
 	})
+	if idx == 0 && n.SelfFirstRounds >= n.TTL {
+		return true
+	}
 	// todo: adaptive
-	delayMS := 100
-	return n.lastAggregationTime+int64(n.TAggSec)*1000000000+int64(idx)*int64(delayMS)*1000000 < time.Now().UnixNano()
+	delayMS := 500
+	timeForReq := n.lastAggregationTime+int64(n.TAggSec)*1000000000+int64(idx)*int64(delayMS)*1000000 < time.Now().UnixNano()
+	backoffExpired := n.lastCancelled+int64(delayMS)*1000000 < time.Now().UnixNano()
+	return timeForReq && backoffExpired
 }
