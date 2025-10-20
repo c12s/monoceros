@@ -711,6 +711,7 @@ func (m *Monoceros) onAggregationResp(network *TreeOverlay, tree plumtree.TreeMe
 // locked by caller
 func (m *Monoceros) onAggregationResult(network *TreeOverlay, tree plumtree.TreeMetadata, result AggregationResult) {
 	m.logger.Println("received aggregation result")
+	m.logger.Println(result.Aggregate)
 	// received := time.Now().UnixNano()
 	// todo: ??
 	if m.latestMetricsTs[result.NetworkID] > result.Timestamp {
