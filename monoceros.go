@@ -250,7 +250,7 @@ func (m *Monoceros) Start() {
 				// todo: ??
 				if len(IntersectPeers(children, aar.WaitingFor)) == 0 || aar.Timestamp+(3*m.config.Aggregation.TAggSec*1000000000) < time.Now().UnixNano() {
 					// if len(IntersectPeers(children, aar.WaitingFor)) == 0 {
-					// m.logger.Println("should")
+					m.logger.Println("quit req")
 					toRemove = append(toRemove, aar)
 					m.completeAggregationReq(network, aar)
 				} else {
