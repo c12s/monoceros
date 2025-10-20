@@ -648,7 +648,9 @@ func (m *Monoceros) onAggregationReq(network *TreeOverlay, tree plumtree.TreeMet
 	// m.logger.Println("children to send req", receivers)
 	// m.logger.Println("has parent", network.plumtree.HasParent(tree.Id))
 	cancel := false
-	if (!m.HasHigherScore(tree.NodeID(), tree.Score)) {
+	if ((!m.HasHigherScore(tree.NodeID(), tree.Score) && tree.NodeID() != m.config.NodeID) || slices.ContainsFunc(network.activeRequests, func(r *ActiveAggregationReq) bool {
+		return r != nil && r.Tree.Score > tree.Score
+	})) && network.plumtree.HasParent(tree.Id) {
 		cancel = true
 	} else {
 		network.lastAggregationTime = int64(math.Max(float64(time.Now().UnixNano()), float64(network.lastAggregationTime)))
