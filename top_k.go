@@ -148,10 +148,11 @@ func (n *TreeOverlay) gossipTopK() {
 		if rand.Float64() < 0.5 {
 			continue
 		}
-		err := peer.Conn.Send(hvMsg)
-		if err != nil {
-			n.logger.Println(err)
-		}
+		peer.Conn.Send(hvMsg)
+		// err := peer.Conn.Send(hvMsg)
+		// if err != nil {
+		// 	n.logger.Println(err)
+		// }
 	}
 
 	// Optional: log for debugging

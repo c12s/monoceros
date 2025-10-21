@@ -97,7 +97,7 @@ func (gn *GossipNode) Broadcast(msg []byte) {
 		}
 	}
 	for _, peer := range gn.membership.GetPeers(100) {
-		err := peer.Conn.Send(data.Message{
+		peer.Conn.Send(data.Message{
 			Type:    GLOBAL_GOSSIP_MSG_TYPE,
 			Payload: msgBytes,
 		})
@@ -113,10 +113,11 @@ func (gn *GossipNode) Send(msg []byte, to transport.Conn) error {
 	nowBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(nowBytes, uint64(now))
 	msgBytes := append(nowBytes, msg...)
-	return to.Send(data.Message{
+	to.Send(data.Message{
 		Type:    GLOBAL_GOSSIP_MSG_TYPE,
 		Payload: msgBytes,
 	})
+	return nil
 }
 
 func (gn *GossipNode) onGossipReceived(msgBytes []byte, from hyparview.Peer) {
@@ -157,7 +158,7 @@ func (gn *GossipNode) onGossipReceived(msgBytes []byte, from hyparview.Peer) {
 		if peer.Conn.GetAddress() == from.Conn.GetAddress() {
 			continue
 		}
-		err := peer.Conn.Send(data.Message{
+		peer.Conn.Send(data.Message{
 			Type:    GLOBAL_GOSSIP_MSG_TYPE,
 			Payload: msgBytes,
 		})
