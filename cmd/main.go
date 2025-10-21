@@ -112,7 +112,7 @@ func main() {
 		ID:            mcConfig.NodeID,
 		ListenAddress: mcConfig.GNListenAddr,
 	}
-	gnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(gnSelf.ListenAddress))
+	gnConnManager := transport.NewConnManager(false, transport.NewTCPConn, transport.AcceptTcpConnsFn(gnSelf.ListenAddress, false))
 	// gnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(gnSelf.ListenAddress, ":")[1])))
 	gnHv, err := hyparview.NewHyParView(hvConfig, gnSelf, gnConnManager, gnHvLogger)
 	if err != nil {
@@ -127,7 +127,7 @@ func main() {
 		ID:            mcConfig.NodeID,
 		ListenAddress: mcConfig.RNListenAddr,
 	}
-	rnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(rnSelf.ListenAddress))
+	rnConnManager := transport.NewConnManager(true, transport.NewTCPConn, transport.AcceptTcpConnsFn(rnSelf.ListenAddress, true))
 	// rnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(rnSelf.ListenAddress, ":")[1])))
 	rnHv, err := hyparview.NewHyParView(hvConfig, rnSelf, rnConnManager, rnHvLogger)
 	if err != nil {
@@ -143,7 +143,7 @@ func main() {
 		ID:            mcConfig.NodeID,
 		ListenAddress: mcConfig.RRNListenAddr,
 	}
-	rrnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(rrnSelf.ListenAddress))
+	rrnConnManager := transport.NewConnManager(true, transport.NewTCPConn, transport.AcceptTcpConnsFn(rrnSelf.ListenAddress, true))
 	// rrnConnManager := transport.NewConnManager(transport.NewTCPConn, transport.AcceptTcpConnsFn(fmt.Sprintf("0.0.0.0:%s", strings.Split(rrnSelf.ListenAddress, ":")[1])))
 	rrnHvConfig := hvConfig
 	rrnHvConfig.Fanout = 1000
